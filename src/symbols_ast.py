@@ -1,0 +1,96 @@
+from pathlib import Path
+import ast
+from typing import List
+from types_ast import Symbol
+
+IGNORE = [".venv", "site-packages", "build", "dist", "__pycache__", ".git", ".idea", ".vscode"]
+
+def collect_py_files(root: str) -> list[Path]:
+    r = Path(root)
+    files = []
+    for p in r.rglob("*.py"):
+        if any(x in p.parts for x in IGNORE):
+            continue
+        files.append(p)
+    return files
+
+def module_qualname(path: Path, src_root: Path) -> str:
+    try:
+        rel = path.relative_to(src_root).with_suffix("")
+        return ".".join(rel.parts)
+    except ValueError:
+        return path.stem
+
+def parse_symbols_file(path: Path, src_root: Path) -> list[Symbol]:
+    try:
+        src = path.read_text(encoding="utf-8")
+        tree = ast.parse(src, filename=str(path))
+    except Exception as e:
+        print(f"Error parsing {path}: {e}")
+        return []
+
+    mod = module_qualname(path, src_root)
+    out: list[Symbol] = []
+    
+    class V(ast.NodeVisitor):
+        def visit_ClassDef(self, n):
+            out.append(Symbol(
+                symbol_id=f"{mod}.{n.name}", 
+                kind="class", 
+                file=str(path),
+                qualname=f"{mod}.{n.name}", 
+                parent=mod, 
+                start=n.lineno,
+                end=n.end_lineno,
+            ))
+            for item in n.body:
+                if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                    self.visit_Method(item, f"{mod}.{n.name}")
+
+        def visit_Method(self, n, parent_qualname):
+            out.append(Symbol(
+                symbol_id=f"{parent_qualname}.{n.name}", 
+                kind="method", 
+                file=str(path),
+                qualname=f"{parent_qualname}.{n.name}", 
+                parent=parent_qualname, 
+                start=n.lineno,
+                end=n.end_lineno,
+            ))
+
+        def visit_FunctionDef(self, n):
+            out.append(Symbol(
+                symbol_id=f"{mod}.{n.name}", 
+                kind="function", 
+                file=str(path),
+                qualname=f"{mod}.{n.name}", 
+                parent=mod, 
+                start=n.lineno,
+                end=n.end_lineno,
+            ))
+
+    for node in tree.body:
+        if isinstance(node, ast.ClassDef):
+            V().visit_ClassDef(node)
+        elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            V().visit_FunctionDef(node)
+
+    return out
+
+def index_repo_ast(root: str) -> List[Symbol]:
+    src_root = Path(root)
+    if (src_root / "src").exists():
+        package_root = src_root / "src"
+    else:
+        package_root = src_root
+
+    files = collect_py_files(str(src_root))
+    all_symbols = []
+
+    print(f"Indexing {len(files)} files in {src_root} using AST...")
+
+    for f in files:
+        syms = parse_symbols_file(f, package_root)
+        all_symbols.extend(syms)
+
+    return all_symbols
