@@ -1,9 +1,14 @@
+import hashlib
 from pathlib import Path
 import ast
 from typing import List
 from types_ast import Symbol
 
 IGNORE = [".venv", "site-packages", "build", "dist", "__pycache__", ".git", ".idea", ".vscode"]
+
+def _sha(s: str) -> str:
+    """Berechnet den Hash des Code-Inhalts."""
+    return hashlib.sha256(s.encode("utf-8")).hexdigest()
 
 def collect_py_files(root: str) -> list[Path]:
     r = Path(root)
@@ -31,9 +36,15 @@ def parse_symbols_file(path: Path, src_root: Path) -> list[Symbol]:
 
     mod = module_qualname(path, src_root)
     out: list[Symbol] = []
-    
+    lines = src.splitlines()
     class V(ast.NodeVisitor):
         def visit_ClassDef(self, n):
+            doc = ast.get_docstring(n) or ""
+            # take the source code as fingerprint --> make hash so that if the code changes,the hash also changes
+            # Then the vector db is only updated, if the hash of a function changes.
+            segment = "\n".join(lines[n.lineno - 1:n.end_lineno])
+            content_hash = _sha(segment)
+
             out.append(Symbol(
                 symbol_id=f"{mod}.{n.name}", 
                 kind="class", 
@@ -42,12 +53,18 @@ def parse_symbols_file(path: Path, src_root: Path) -> list[Symbol]:
                 parent=mod, 
                 start=n.lineno,
                 end=n.end_lineno,
+                docstring=doc,
+                hash=content_hash
             ))
             for item in n.body:
                 if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef)):
                     self.visit_Method(item, f"{mod}.{n.name}")
 
         def visit_Method(self, n, parent_qualname):
+            doc = ast.get_docstring(n) or ""
+            segment = "\n".join(lines[n.lineno - 1:n.end_lineno])
+            content_hash = _sha(segment)
+
             out.append(Symbol(
                 symbol_id=f"{parent_qualname}.{n.name}", 
                 kind="method", 
@@ -56,9 +73,14 @@ def parse_symbols_file(path: Path, src_root: Path) -> list[Symbol]:
                 parent=parent_qualname, 
                 start=n.lineno,
                 end=n.end_lineno,
+                docstring=doc,
+                hash=content_hash
             ))
 
         def visit_FunctionDef(self, n):
+            doc = ast.get_docstring(n) or ""
+            segment = "\n".join(lines[n.lineno - 1:n.end_lineno])
+            content_hash = _sha(segment)
             out.append(Symbol(
                 symbol_id=f"{mod}.{n.name}", 
                 kind="function", 
@@ -67,6 +89,8 @@ def parse_symbols_file(path: Path, src_root: Path) -> list[Symbol]:
                 parent=mod, 
                 start=n.lineno,
                 end=n.end_lineno,
+                docstring=doc,
+                hash=content_hash
             ))
 
     for node in tree.body:

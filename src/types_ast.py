@@ -9,4 +9,6 @@ class Symbol:
     qualname: str
     parent: Optional[str]
     start: int
+    docstring: str
     end: int
+    hash: str
