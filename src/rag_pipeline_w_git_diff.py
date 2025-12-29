@@ -223,7 +223,7 @@ def git_commit_and_push_changes():
 
     # 1. Dateien hinzufügen (Doku-Ordner und Vektor-Daten)
     # Wir fügen explizit diese Pfade hinzu
-    subprocess.run(["git", "add", "docs/api/", "qdrant_data/"], check=True)
+    subprocess.run(["git", "add", DOCS_ROOT, QDRANT_DATA_PATH], check=True)
 
     # 2. Prüfen, ob es überhaupt Änderungen gibt
     status = subprocess.check_output(["git", "status", "--porcelain"], text=True)
