@@ -78,7 +78,10 @@ class ArithmeticOperations:
         self._log_op("sub", a, b, result)
         return result
 
-
+    def multiply(self, a: float, b: float) -> float:
+        """Multiplies b with a."""
+        # test funktion
+        return 0
 
     def _check_limits(self, *args):
         """Internal helper to validate input ranges."""
