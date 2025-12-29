@@ -228,8 +228,6 @@ def process_pipeline(llm):
     for sym in all_symbols:
         if sym.kind in ("class", "function", "method"):
             symbols_by_file[sym.file].append(sym)
-    print(symbols_by_file)
-    stop
     for file_path, file_symbols in symbols_by_file.items():
         if "core.py" not in str(file_path):
             continue

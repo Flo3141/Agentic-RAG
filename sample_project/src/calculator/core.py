@@ -80,7 +80,7 @@ class ArithmeticOperations:
 
     def multiply(self, a: float, b: float) -> float:
         """Multiplies b with a."""
-        # test funktion12
+        # test funktion
         return 0
 
     def _check_limits(self, *args):
