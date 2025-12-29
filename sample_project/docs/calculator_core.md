@@ -139,50 +139,51 @@ except CalculatorError as e:
 <!-- BEGIN: auto:calculator.core.ArithmeticOperations -->
 ### `ArithmeticOperations`
 
-**Summary**  
-A robust calculator implementation for performing basic arithmetic operations (`add`, `subtract`) with configurable precision (max 10 decimal places), input validation, and audit logging.
+**Summary**
+A robust calculator implementation for basic arithmetic operations with configurable precision, audit logging, and input validation.
 
-**Parameters**  
-- `precision` (int): Number of decimal places for rounding results (default: `4`). Must be between `0` and `10` (inclusive).
+**Parameters**
+- `precision` (int): Number of decimal places for rounding results. Default: `DEFAULT_PRECISION` (a module constant, typically 2).
 
-**Returns**  
-- `None`: The class initializes without returning a value.
+**Returns**
+- None: The class initializes without returning a value.
 
-**Raises**  
-- `PrecisionError`: If `precision` is greater than `10` (max precision is `10`).  
-- `CalculationLimitError`: If an operand value exceeds the defined limits (`MIN_VALUE` or `MAX_VALUE`).
+**Raises**
+- `PrecisionError`: Raised during initialization if `precision` exceeds 10 (max allowed).
+- `CalculationLimitError`: Raised during operation if input values exceed the safe range (`MIN_VALUE` to `MAX_VALUE`).
+- `TypeError`: Raised if non-numeric inputs are provided (for `add`, `subtract`, and `multiply`).
 
-**Examples**  
+**Examples**
 ```python
 from calculator.core import ArithmeticOperations
 
-# Example 1: Basic initialization and addition
-calc = ArithmeticOperations()
-result = calc.add(1.2345, 2.3456)
-print(f"Result: {result:.4f}")  # Output: 3.5801
-print(f"History: {calc.history}")  # Output: ["add(1.2345, 2.3456) = 3.5801"]
+# Initialize with default precision (2 decimals)
+calc = ArithmeticOperations(precision=2)
 
-# Example 2: Custom precision and subtraction
-calc = ArithmeticOperations(precision=3)
-result = calc.subtract(10.0, 2.5)
-print(f"Result: {result:.3f}")  # Output: 7.500
-print(f"History: {calc.history}")  # Output: ["sub(10.0, 2.5) = 7.500"]
+# Add two numbers (logs operation)
+result = calc.add(2.5, 3.7)
+print(f"Result: {result:.2f}")  # Output: Result: 6.20
+print(f"History: {calc.history}")  # Output: ['add(2.5, 3.7) = 6.20']
 
-# Example 3: Exception handling
+# Subtract with 3 decimal places
+result = calc.subtract(10.001, 3.5)
+print(f"Result: {result:.3f}")  # Output: Result: 6.499
+
+# Handling invalid precision
 try:
     calc = ArithmeticOperations(precision=11)
 except PrecisionError as e:
-    print(e)  # Output: "Max precision is 10."
+    print(e)  # Output: Max precision is 10.
 
+# Handling out-of-range values
 try:
-    calc = ArithmeticOperations(precision=4)
-    calc.add(1e100, 0.0)
+    calc.add(1e10, 0.0)
 except CalculationLimitError as e:
-    print(e)  # Output: "Value 1e+100 exceeds limits."
+    print(e)  # Output: Value 10000000000.0 exceeds safe range.
 ```
 
-**See also**  
-- `calculator.core` (module)
+**See also**
+- `calculator.core`: The module containing this class.
 <!-- END: auto:calculator.core.ArithmeticOperations -->
 
 ---
@@ -480,5 +481,44 @@ def mode(self, a: float, b: float) -> float:
 **See also**
 - [ArithmeticOperations](https://example.com) (the class that uses this method)
 <!-- END: auto:calculator.core.ArithmeticOperations._log_op -->
+
+---
+
+<!-- BEGIN: auto:calculator.core.ArithmeticOperations.multiply -->
+### `ArithmeticOperations.multiply`
+
+**Summary**
+The `multiply` method is intended to multiply two numbers but currently **always returns the integer `0`** regardless of input values. This is a critical implementation error that violates the method's intended purpose and causes incorrect results in all downstream calculations.
+
+**Parameters**
+- `a` (float): First operand (a numeric value to be multiplied). The method does not validate input types (e.g., `int`, `str`, `complex` values could be passed).
+- `b` (float): Second operand (a numeric value to be multiplied). The method does not validate input types.
+
+**Returns**
+- (int): Always returns the integer `0` (note: the method is annotated as returning `float` but the actual return type is `int`).
+
+**Raises**
+- `TypeError`: If `a` or `b` is not a numeric type (e.g., `int`, `float`, `complex`), the method will raise a `TypeError` at runtime.
+
+**Examples**
+```python
+from calculator.core import ArithmeticOperations
+
+# Basic usage: always returns 0
+calc = ArithmeticOperations()
+result = calc.multiply(5.0, 3.0)  # Returns 0 (int)
+print(result)  # Output: 0
+
+# Edge case: non-numeric input raises TypeError
+try:
+    calc.multiply("a", 10.0)
+except TypeError as e:
+    print(f"Error: {e}")
+```
+
+**See also**
+- `ArithmeticOperations.subtract`: A working method for subtraction
+- `ArithmeticOperations.mode`: Another working method (as per context)
+<!-- END: auto:calculator.core.ArithmeticOperations.multiply -->
 
 ---
