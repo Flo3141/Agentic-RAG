@@ -3,28 +3,58 @@
 
 
 <!-- BEGIN: auto:calculator.core.CalculatorError -->
-### `SymbolName`
+### `CalculatorError`
 
 **Summary**
-Returns the full name of a financial symbol.
+Base exception class for all calculator errors in the `calculator.core` module. This class serves as the root of the exception hierarchy for the calculator module and is never instantiated directly. It provides a standardized foundation for domain-specific errors (e.g., `CalculationLimitError`, `InvalidInputError`) without implementing any business logic.
 
 **Parameters**
-- `symbol` (str): The financial symbol to look up (e.g., "AAPL" for Apple Inc.)
+- None: The class has no parameters. It is a pure exception base class with no constructor arguments.
 
 **Returns**
-- (str): The full name of the symbol.
+- None: This class does not return a value. It is an exception class and is used to raise exceptions via its subclasses.
 
 **Raises**
-- `ValueError`: If the symbol is not found in the symbol database.
+- None: This class does not raise exceptions. It is a base class for calculator exceptions and is never instantiated directly.
 
 **Examples**
 ```python
-symbol_name = SymbolName("AAPL")
-print(symbol_name)  # Output: "Apple Inc."
+from calculator.core import ArithmeticOperations, CalculationLimitError
+
+try:
+    result = ArithmeticOperations.multiply(10**1000, 1)
+except CalculationLimitError as e:
+    print(f"Calculation limit error: {e}")
 ```
+`Calculation limit error: Value exceeds maximum allowed precision`
+
+```python
+from calculator.core import CalculatorError
+
+class InvalidInputError(CalculatorError):
+    pass
+
+try:
+    raise InvalidInputError("Input must be a positive integer")
+except CalculatorError as e:
+    print(f"Calculator error: {e}")
+```
+`Calculator error: Input must be a positive integer`
+
+```python
+from calculator.core import ArithmeticOperations
+
+try:
+    ArithmeticOperations._log_op("multiply", 100, 200)
+    result = ArithmeticOperations.multiply(100, 200)
+except CalculatorError as e:
+    print(f"Operation failed: {e}")
+```
+`Operation failed: Value exceeds maximum allowed precision`
 
 **See also**
-- `SymbolInfo`: Provides more detailed information about a symbol.
+- `CalculationLimitError`: A subclass of `CalculatorError` raised when arithmetic operations exceed precision limits.
+- `InvalidInputError`: A custom subclass of `CalculatorError` for handling invalid input scenarios.
 <!-- END: auto:calculator.core.CalculatorError -->
 
 ---
