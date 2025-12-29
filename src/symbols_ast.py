@@ -1,4 +1,5 @@
 import hashlib
+import pprint
 from pathlib import Path
 import ast
 from typing import List
@@ -118,9 +119,10 @@ def index_repo_ast(root: str, changed_files: list[str] | None = None) -> List[Sy
     all_symbols = []
 
     print(f"Indexing {len(files)} files in {package_root} using AST...")
-
+    print(changed_files)
     if changed_files is not None:
         for f in files:
+            print(f)
             if f in changed_files:
                 syms = parse_symbols_file(f, package_root)
                 all_symbols.extend(syms)
