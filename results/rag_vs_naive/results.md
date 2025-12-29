@@ -11,3 +11,4 @@ Gib aber immernoch Haluzinationen / EIgeen Examples werden creaiert --> Die Exam
 
 Kann Kontext zwischen Funktionen erkennnen --> subtract raised \_check\_limits funktion --> Ist dann auch in See also drinne
 
+Manchaml kommt es dazu, dass als erster Einterag "Symbol" kommt, was fälschlicherweise als Finanz Symbol interpretiert wurde

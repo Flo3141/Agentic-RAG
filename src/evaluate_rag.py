@@ -1,3 +1,4 @@
+import os
 import sys
 from pathlib import Path
 from collections import defaultdict
@@ -6,6 +7,7 @@ from langchain_openai import ChatOpenAI
 from langchain_core.prompts import PromptTemplate
 
 from embed import Embedder
+from src.markdown_writer import MarkdownWriter
 from src.symbols_ast import index_repo_ast
 from store_qdrant import QdrantStore
 
@@ -13,6 +15,7 @@ from store_qdrant import QdrantStore
 LLM_API_BASE = "http://localhost:11434/v1"
 LLM_MODEL_NAME = "qwen3:4b"
 LLM_API_KEY = "ollama"
+DOCS_ROOT = Path("../sample_project/docs")
 
 # --- 2. Prompts ---
 CODE_EXPERT_PROMPT = PromptTemplate(
@@ -197,7 +200,9 @@ def evaluate_rag(root_dir: str, llm):
 
     embedder = Embedder(device="cpu")
 
-    store = QdrantStore(index_path=Path("./qdrant_data"), collection_name="eval_repo")
+    store = QdrantStore(index_path=Path("../sample_project/qdrant_data"), collection_name="eval_repo")
+
+    writer = MarkdownWriter(DOCS_ROOT)
 
     # Index repository
     all_symbols = run_indexing(root_dir, embedder, store)
@@ -211,14 +216,18 @@ def evaluate_rag(root_dir: str, llm):
         if "core.py" not in str(file_path):
             continue
 
+        # Generaste the MD file name
+        # The name will be all directories and the final file joined with "_"
+        # So all MD files can be found in the top level of the DOCS_ROOT
+        # ONLY THE FILES WITHIN THE SRC FOLDER WILL BE DOCUMENTED
+        src_index = file_path.rfind("src")
+        file_path_split = file_path[src_index:].split(os.sep)
+        md_file_name = "_".join(file_path_split[1:]).replace(".py", ".md")
+        md_file_path = Path(DOCS_ROOT, md_file_name)
+
         base_name = Path(file_path).stem
-        out_name = f"docs_rag_{base_name}.md"
 
         print(f"\nProcessing {base_name} with Standard RAG...")
-
-        with open(out_name, "w", encoding="utf-8") as f:
-            f.write(f"# Dokumentation für {base_name}\n")
-            f.write("> Generiert mit Standard RAG (AST + Vector Search)\n\n")
 
         file_symbols.sort(key=lambda s: s.start)
 
@@ -234,12 +243,9 @@ def evaluate_rag(root_dir: str, llm):
 
             # Call RAG pipeline
             docs = generate_with_rag(llm, code_segment, embedder, store, sym.qualname)
+            # Write using the markdown writer
+            writer.write_section(file_path=md_file_path, symbol_id=sym.symbol_id,content=docs)
 
-            with open(out_name, "a", encoding="utf-8") as f:
-                f.write(f"\n\n")
-                f.write(docs)
-                f.write(f"\n\n")
-                f.write("\n---\n")
 
     store.close()
 

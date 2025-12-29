@@ -17,7 +17,7 @@ class QdrantStore:
     def __init__(self, index_path: Optional[Path] = None, collection_name: str = "codebase", dim: int = 768):
         self.dim = dim
         self.collection_name = collection_name
-        self.index_path = Path(index_path) if index_path else Path("./qdrant_data")
+        self.index_path = Path(index_path) if index_path else Path("../sample_project/qdrant_data")
 
         path_str = str(self.index_path)
         self.client = QdrantClient(path=path_str)

@@ -103,15 +103,15 @@ def parse_symbols_file(path: Path, src_root: Path) -> list[Symbol]:
 
 def index_repo_ast(root: str) -> List[Symbol]:
     src_root = Path(root)
-    if (src_root / "src").exists():
-        package_root = src_root / "src"
+    if Path(src_root / "src").exists():
+        package_root = Path(src_root / "src")
     else:
         package_root = src_root
 
-    files = collect_py_files(str(src_root))
+    files = collect_py_files(str(package_root))
     all_symbols = []
 
-    print(f"Indexing {len(files)} files in {src_root} using AST...")
+    print(f"Indexing {len(files)} files in {package_root} using AST...")
 
     for f in files:
         syms = parse_symbols_file(f, package_root)
