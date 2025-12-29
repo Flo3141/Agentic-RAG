@@ -516,3 +516,54 @@ print(result)  # Output: 0.0
 <!-- END: auto:calculator.core.ArithmeticOperations.multiply -->
 
 ---
+
+<!-- BEGIN: auto:calculator.core.TestError -->
+### `TestError`
+
+**Summary**
+The `TestError` class is a custom exception subclass designed for testing purposes within the calculator module. It inherits directly from `CalculatorError` (a base error class in `calculator.core`), enabling it to be used as a specialized error type in test scenarios. This class serves no runtime functionality beyond being a placeholder for test-specific error conditions.
+
+**Parameters**
+- None
+
+**Returns**
+- None
+
+**Raises**
+- `TypeError`: When creating an instance without the required `message` argument (the base class `CalculatorError` expects a `message` string).
+- `AttributeError`: When attempting to call `TestError` as a function (e.g., `TestError()`).
+
+**Examples**
+```python
+# Example 1: Raising a Test Error in Test Code
+from calculator.core import TestError
+
+try:
+    raise TestError("Test failure")
+except TestError as e:
+    print(f"Caught test error: {e}")
+
+# Example 2: Using in Calculator's Test Mode
+class Calculator:
+    def __init__(self, test_mode=False):
+        self.test_mode = test_mode
+
+    def calculate(self, expression):
+        if self.test_mode:
+            raise TestError("Test mode: simulation error")
+
+# Example 3: Catching Test Errors in Error Handlers
+def handle_test_errors():
+    try:
+        calculator = Calculator(test_mode=True)
+        calculator.calculate("1+1")
+    except TestError as e:
+        print(f"Critical test failure: {e}")
+```
+
+**See also**
+- `CalculatorError` (base error class in `calculator.core`)
+- `calculator.core` (module containing the base error class)
+<!-- END: auto:calculator.core.TestError -->
+
+---
