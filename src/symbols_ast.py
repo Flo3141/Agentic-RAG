@@ -119,8 +119,13 @@ def index_repo_ast(root: str, changed_files: list[str] | None = None) -> List[Sy
 
     print(f"Indexing {len(files)} files in {package_root} using AST...")
 
-    for f in files:
-        syms = parse_symbols_file(f, package_root)
-        all_symbols.extend(syms)
-
+    if changed_files is not None:
+        for f in files:
+            if f in changed_files:
+                syms = parse_symbols_file(f, package_root)
+                all_symbols.extend(syms)
+    else:
+        for f in files:
+            syms = parse_symbols_file(f, package_root)
+            all_symbols.extend(syms)
     return all_symbols

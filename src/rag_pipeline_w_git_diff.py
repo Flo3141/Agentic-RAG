@@ -1,5 +1,6 @@
 import subprocess
 import sys
+from collections import defaultdict
 from pathlib import Path
 from langchain_core.output_parsers import StrOutputParser
 from langchain_openai import ChatOpenAI
@@ -105,7 +106,7 @@ def run_indexing(root_dir: str, embedder, store):
     print(f"Verarbeite Änderungen in: {changed_files}")
 
     # 1. Code parsen
-    current_symbols = symbols_ast.index_repo_ast(root_dir)
+    current_symbols = symbols_ast.index_repo_ast(root_dir, changed_files)
 
     # Index only relevant symbols (Klassen, Funktionen)
     indexable_symbols = [s for s in current_symbols if s.kind in ("class", "function", "method")]
@@ -167,6 +168,40 @@ def run_indexing(root_dir: str, embedder, store):
     return current_symbols
 
 
+def generate_with_rag(llm, code_segment, embedder, store, current_symbol_name):
+    """
+    Führt den klassischen RAG-Schritt aus:
+    Query -> Vektor-Suche -> Kontext -> LLM Generierung
+    """
+
+    # Retrieve the 5 most similar symbols form the vector db
+    # Only 4 will be used as context, as one hte the symbol itself
+    query_vec = embedder.encode([current_symbol_name])
+    results = store.search(query_vec, k=5)
+
+    # Create the context with the similar symbols
+    context_lines = []
+    for res in results:
+        if res['qualname'] != current_symbol_name:
+            context_lines.append(f"- {res['qualname']} ({res['kind']}) from {res['file']}")
+
+    context_str = "\n".join(context_lines) if context_lines else "No related context found."
+    print(f"    [RAG Context]: {len(context_lines)} items found.")
+
+    # LLM like before
+    analyze_chain = CODE_EXPERT_PROMPT | llm | StrOutputParser()
+    analysis = analyze_chain.invoke({
+        "code": code_segment,
+        "context": context_str
+    })
+    docs_chain = DOCS_EXPERT_PROMPT | llm | StrOutputParser()
+    markdown = docs_chain.invoke({
+        "analysis": analysis,
+        "existing_docs": ""
+    })
+    return markdown
+
+
 def get_git_diff_files():
     """Holt alle geänderten .py Dateien im Vergleich zum vorherigen Stand."""
     try:
@@ -187,50 +222,46 @@ def process_pipeline(llm):
     # Index repository
     all_symbols = run_indexing(REPO_ROOT, embedder, store)
 
-    for file_path in changed_files:
-        # 3. Symbole der geänderten Datei parsen
-        symbols = symbols_ast.parse_symbols_file(Path(file_path), REPO_ROOT)
+    symbols_by_file = defaultdict(list)
+    for sym in all_symbols:
+        if sym.kind in ("class", "function", "method"):
+            symbols_by_file[sym.file].append(sym)
 
-        for sym in symbols:
-            if sym.kind not in ("class", "method", "function"):
+    for file_path, file_symbols in symbols_by_file.items():
+        if "core.py" not in str(file_path):
+            continue
+
+        # Generaste the MD file name
+        # The name will be all directories and the final file joined with "_"
+        # So all MD files can be found in the top level of the DOCS_ROOT
+        # ONLY THE FILES WITHIN THE SRC FOLDER WILL BE DOCUMENTED
+        src_index = file_path.rfind("src")
+        file_path_split = file_path[src_index:].split(os.sep)
+        md_file_name = "_".join(file_path_split[1:]).replace(".py", ".md")
+        md_file_path = Path(DOCS_ROOT, md_file_name)
+
+        base_name = Path(file_path).stem
+
+        print(f"\nProcessing {base_name} with Standard RAG...")
+
+        file_symbols.sort(key=lambda s: s.start)
+
+        for sym in file_symbols:
+            print(f"  > Symbol: {sym.qualname}")
+
+            try:
+                full_lines = Path(sym.file).read_text(encoding="utf-8").splitlines()
+                code_segment = "\n".join(full_lines[sym.start - 1:sym.end])
+            except Exception as e:
+                print(f"    Fehler beim Lesen: {e}")
                 continue
 
-            # 4. Inkrementelles Indexing (Optional: Hier Hash-Check einbauen)
-            # Wir erstellen das Embedding neu für das geänderte Symbol
-            text_to_embed = f"{sym.qualname}: {sym.docstring}"
-            vector = embedder.encode([text_to_embed])
+            # Call RAG pipeline
+            docs = generate_with_rag(llm, code_segment, embedder, store, sym.qualname)
+            # Write using the markdown writer
+            writer.write_section(file_path=md_file_path, symbol_id=sym.symbol_id, content=docs)
 
-            store.add(vector, [{
-                "symbol_id": sym.symbol_id,
-                "qualname": sym.qualname,
-                "file": sym.file,
-                "kind": sym.kind,
-                "docstring": sym.docstring
-            }])
-
-            # 5. RAG-Dokumentation generieren
-            print(f"Generiere Doku für: {sym.qualname}")
-
-            # Context Retrieval
-            results = store.search(embedder.encode([sym.qualname]), k=5)
-            context = "\n".join([f"- {r['qualname']}: {r.get('docstring', '')[:100]}" for r in results if
-                                 r['qualname'] != sym.qualname])
-
-            # LLM Call (vereinfacht)
-            prompt = f"Context:\n{context}\n\nCode:\n{sym.qualname}\n\nGenerate Documentation:"
-            markdown_content = llm.predict(prompt)
-
-            # 6. Markdown Update mit deinen Markern
-            module_name = sym.parent.split('.')[0] if '.' in sym.parent else sym.parent
-            target_md = DOCS_ROOT / f"{module_name}.md"
-
-            writer.write_section(
-                file_path=target_md,
-                symbol_id=sym.symbol_id,
-                content=markdown_content
-            )
-
-    print("Pipeline erfolgreich abgeschlossen.")
+    store.close()
 
 
 if __name__ == "__main__":
