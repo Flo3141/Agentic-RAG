@@ -6,9 +6,11 @@ from types_ast import Symbol
 
 IGNORE = [".venv", "site-packages", "build", "dist", "__pycache__", ".git", ".idea", ".vscode"]
 
+
 def _sha(s: str) -> str:
     """Berechnet den Hash des Code-Inhalts."""
     return hashlib.sha256(s.encode("utf-8")).hexdigest()
+
 
 def collect_py_files(root: str) -> list[Path]:
     r = Path(root)
@@ -19,12 +21,14 @@ def collect_py_files(root: str) -> list[Path]:
         files.append(p)
     return files
 
+
 def module_qualname(path: Path, src_root: Path) -> str:
     try:
         rel = path.relative_to(src_root).with_suffix("")
         return ".".join(rel.parts)
     except ValueError:
         return path.stem
+
 
 def parse_symbols_file(path: Path, src_root: Path) -> list[Symbol]:
     try:
@@ -37,6 +41,7 @@ def parse_symbols_file(path: Path, src_root: Path) -> list[Symbol]:
     mod = module_qualname(path, src_root)
     out: list[Symbol] = []
     lines = src.splitlines()
+
     class V(ast.NodeVisitor):
         def visit_ClassDef(self, n):
             doc = ast.get_docstring(n) or ""
@@ -46,11 +51,11 @@ def parse_symbols_file(path: Path, src_root: Path) -> list[Symbol]:
             content_hash = _sha(segment)
 
             out.append(Symbol(
-                symbol_id=f"{mod}.{n.name}", 
-                kind="class", 
+                symbol_id=f"{mod}.{n.name}",
+                kind="class",
                 file=str(path),
-                qualname=f"{mod}.{n.name}", 
-                parent=mod, 
+                qualname=f"{mod}.{n.name}",
+                parent=mod,
                 start=n.lineno,
                 end=n.end_lineno,
                 docstring=doc,
@@ -66,11 +71,11 @@ def parse_symbols_file(path: Path, src_root: Path) -> list[Symbol]:
             content_hash = _sha(segment)
 
             out.append(Symbol(
-                symbol_id=f"{parent_qualname}.{n.name}", 
-                kind="method", 
+                symbol_id=f"{parent_qualname}.{n.name}",
+                kind="method",
                 file=str(path),
-                qualname=f"{parent_qualname}.{n.name}", 
-                parent=parent_qualname, 
+                qualname=f"{parent_qualname}.{n.name}",
+                parent=parent_qualname,
                 start=n.lineno,
                 end=n.end_lineno,
                 docstring=doc,
@@ -82,11 +87,11 @@ def parse_symbols_file(path: Path, src_root: Path) -> list[Symbol]:
             segment = "\n".join(lines[n.lineno - 1:n.end_lineno])
             content_hash = _sha(segment)
             out.append(Symbol(
-                symbol_id=f"{mod}.{n.name}", 
-                kind="function", 
+                symbol_id=f"{mod}.{n.name}",
+                kind="function",
                 file=str(path),
-                qualname=f"{mod}.{n.name}", 
-                parent=mod, 
+                qualname=f"{mod}.{n.name}",
+                parent=mod,
                 start=n.lineno,
                 end=n.end_lineno,
                 docstring=doc,
@@ -101,7 +106,8 @@ def parse_symbols_file(path: Path, src_root: Path) -> list[Symbol]:
 
     return out
 
-def index_repo_ast(root: str) -> List[Symbol]:
+
+def index_repo_ast(root: str, changed_files: list[str] | None = None) -> List[Symbol]:
     src_root = Path(root)
     if Path(src_root / "src").exists():
         package_root = Path(src_root / "src")
