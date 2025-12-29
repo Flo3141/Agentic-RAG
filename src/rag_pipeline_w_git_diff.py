@@ -215,6 +215,35 @@ def get_git_diff_files():
         return []
 
 
+def git_commit_and_push_changes():
+    """
+    Staged die Doku und die Vektor-DB, committet sie und führt einen Push aus.
+    """
+    print("\nStaging changes (Docs & Vector DB)...")
+
+    # 1. Dateien hinzufügen (Doku-Ordner und Vektor-Daten)
+    # Wir fügen explizit diese Pfade hinzu
+    subprocess.run(["git", "add", "docs/api/", "qdrant_data/"], check=True)
+
+    # 2. Prüfen, ob es überhaupt Änderungen gibt
+    status = subprocess.check_output(["git", "status", "--porcelain"], text=True)
+
+    if not status.strip():
+        print("Keine Änderungen an Doku oder DB erkannt. Alles aktuell.")
+        return
+
+    print("Committing automated documentation updates...")
+    # 3. Automatischer Commit
+    subprocess.run(["git", "commit", "-m", "docs: auto-update documentation and vector DB via RAG pipeline"],
+                   check=True)
+
+    print("Pushing updates to remote...")
+    # 4. Push ausführen.
+    # WICHTIG: --no-verify verhindert, dass der Hook sich selbst endlos aufruft!
+    subprocess.run(["git", "push", "origin", "main", "--no-verify"], check=True)
+    print("All changes (Code, Docs, DB) successfully pushed.")
+
+
 def process_pipeline(llm):
     embedder = Embedder()
     store = QdrantStore(index_path=Path(QDRANT_DATA_PATH), collection_name="eval_repo")
@@ -263,6 +292,7 @@ def process_pipeline(llm):
             writer.write_section(file_path=md_file_path, symbol_id=sym.symbol_id, content=docs)
 
     store.close()
+    git_commit_and_push_changes()
 
 
 if __name__ == "__main__":
