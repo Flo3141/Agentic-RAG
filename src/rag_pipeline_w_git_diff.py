@@ -109,15 +109,12 @@ def run_indexing(root_dir: str, embedder, store):
     # 1. Code parsen
     current_symbols = symbols_ast.index_repo_ast(root_dir, changed_files)
 
-    # Index only relevant symbols (Klassen, Funktionen)
-    indexable_symbols = [s for s in current_symbols if s.kind in ("class", "function", "method")]
-
     # Create lookup map of all symbol_ids with corresponding hashes from the Qdrant DB
     existing_hashes = {}
 
     try:
         # Get all entries of the db, get only the payload, not the vectors --> the payload contains the symbol_id and the hash
-        # You should do this in a loop when the repo is big, but this will suffice for now
+        # We should do this in a loop when the repo is big, but this will suffice for now
         res = store.client.scroll(
             collection_name=store.collection_name,
             limit=10000,
@@ -134,23 +131,26 @@ def run_indexing(root_dir: str, embedder, store):
         print(f"Could not read db {e}")
 
     # Get differences
+    changed_symbols = []
     to_embed = []
     skipped_count = 0
 
-    for sym in indexable_symbols:
-        # Does the symbol exist and is the hash the same? --> If yes, no need to embedd it again
+    for sym in current_symbols:
         if sym.symbol_id in existing_hashes and existing_hashes[sym.symbol_id] == sym.hash:
             skipped_count += 1
             continue
-        to_embed.append(sym)
+        changed_symbols.append(sym)
+        # Index only relevant symbols (Classes, functions)
+        if sym.kind in ("class", "function", "method"):
+            to_embed.append(sym)
 
     print(f"{skipped_count} symbols not changed")
     print(f"Update necessary for {len(to_embed)} symbols.")
 
     if not to_embed:
-        return current_symbols
+        return changed_symbols
 
-    # Only embedd the changed symbols
+    # Only embed the changed symbols
     texts = [f"{s.qualname}: {s.docstring}" for s in to_embed]
     vectors = embedder.encode(texts)
 
@@ -166,7 +166,7 @@ def run_indexing(root_dir: str, embedder, store):
 
     store.add(vectors, metadatas)
 
-    return current_symbols
+    return changed_symbols
 
 
 def generate_with_rag(llm, code_segment, embedder, store, current_symbol_name):
@@ -222,12 +222,14 @@ def process_pipeline(llm):
 
     # Index repository
     all_symbols = run_indexing(REPO_ROOT, embedder, store)
+    print(all_symbols)
 
     symbols_by_file = defaultdict(list)
     for sym in all_symbols:
         if sym.kind in ("class", "function", "method"):
             symbols_by_file[sym.file].append(sym)
     print(symbols_by_file)
+    stop
     for file_path, file_symbols in symbols_by_file.items():
         if "core.py" not in str(file_path):
             continue
