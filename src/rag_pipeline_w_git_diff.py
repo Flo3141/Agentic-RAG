@@ -1,8 +1,8 @@
 import subprocess
 import sys
 from pathlib import Path
-from langchain_openai import ChatOpenAI
 from langchain_core.output_parsers import StrOutputParser
+from langchain_openai import ChatOpenAI
 from langchain_core.prompts import PromptTemplate
 
 # Import deiner bestehenden Module
@@ -15,9 +15,9 @@ from markdown_writer import MarkdownWriter
 LLM_API_BASE = "http://localhost:11434/v1"
 LLM_MODEL_NAME = "qwen3:4b"
 LLM_API_KEY = "ollama"
-DOCS_ROOT = Path("../sample_project/docs")
-REPO_ROOT = Path("../sample_project")
-QDRANT_DATA_PATH = Path("../sample_project/qdrant_data")
+DOCS_ROOT = Path("./sample_project/docs")
+REPO_ROOT = Path("./sample_project")
+QDRANT_DATA_PATH = Path("./sample_project/qdrant_data")
 
 # --- 2. Prompts ---
 CODE_EXPERT_PROMPT = PromptTemplate(
@@ -96,8 +96,16 @@ def run_indexing(root_dir: str, embedder, store):
     """
     print("\n--- STEP 1: Indexing Repository (Knowledge Base) ---")
 
+    # 1. Find changed files
+    changed_files = get_git_diff_files()
+    if not changed_files:
+        print("Keine Python-Dateien geändert.")
+        return
+
+    print(f"Verarbeite Änderungen in: {changed_files}")
+
     # 1. Code parsen
-    current_symbols = index_repo_ast(root_dir)
+    current_symbols = symbols_ast.index_repo_ast(root_dir)
 
     # Index only relevant symbols (Klassen, Funktionen)
     indexable_symbols = [s for s in current_symbols if s.kind in ("class", "function", "method")]
@@ -167,23 +175,17 @@ def get_git_diff_files():
         result = subprocess.check_output(cmd, text=True).strip()
         return [f for f in result.splitlines() if f.endswith(".py") and Path(f).exists()]
     except Exception as e:
-        print(f"⚠️ Git Diff Fehler (vielleicht erster Commit?): {e}")
+        print(f"Git Diff Fehler (vielleicht erster Commit?): {e}")
         return []
 
 
 def process_pipeline(llm):
-    # 1. Setup Komponenten
     embedder = Embedder()
     store = QdrantStore(index_path=Path(QDRANT_DATA_PATH), collection_name="eval_repo")
     writer = MarkdownWriter(DOCS_ROOT)
 
-    # 2. Geänderte Dateien finden
-    changed_files = get_git_diff_files()
-    if not changed_files:
-        print("✅ Keine Python-Dateien geändert.")
-        return
-
-    print(f"🔍 Verarbeite Änderungen in: {changed_files}")
+    # Index repository
+    all_symbols = run_indexing(REPO_ROOT, embedder, store)
 
     for file_path in changed_files:
         # 3. Symbole der geänderten Datei parsen
@@ -207,7 +209,7 @@ def process_pipeline(llm):
             }])
 
             # 5. RAG-Dokumentation generieren
-            print(f"  📝 Generiere Doku für: {sym.qualname}")
+            print(f"Generiere Doku für: {sym.qualname}")
 
             # Context Retrieval
             results = store.search(embedder.encode([sym.qualname]), k=5)
@@ -228,7 +230,7 @@ def process_pipeline(llm):
                 content=markdown_content
             )
 
-    print("🚀 Pipeline erfolgreich abgeschlossen.")
+    print("Pipeline erfolgreich abgeschlossen.")
 
 
 if __name__ == "__main__":
