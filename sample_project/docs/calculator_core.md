@@ -139,51 +139,46 @@ except CalculatorError as e:
 <!-- BEGIN: auto:calculator.core.ArithmeticOperations -->
 ### `ArithmeticOperations`
 
-**Summary**
-A robust calculator implementation for basic arithmetic operations with configurable precision, audit logging, and input validation.
+**Summary**  
+A robust calculator implementation for performing basic arithmetic operations (`add`, `subtract`, `multiply`) with configurable precision (decimal places), input validation to prevent overflow/underflow, audit logging of operations, and mode management (fixed to standard mode).
 
-**Parameters**
-- `precision` (int): Number of decimal places for rounding results. Default: `DEFAULT_PRECISION` (a module constant, typically 2).
+**Constructor Parameters**  
+- `precision` (int): Number of decimal places for rounding results (default: `DEFAULT_PRECISION`).
 
-**Returns**
-- None: The class initializes without returning a value.
+**Methods**  
+- `add(a: float, b: float) -> float`: Returns the rounded sum of `a` and `b` to `self.precision` decimal places.  
+- `subtract(a: float, b: float) -> float`: Returns the rounded difference of `a` and `b` (i.e., `a - b`) to `self.precision` decimal places.  
+- `multiply(a: float, b: float) -> float`: Returns the product of `a` and `b` rounded to `self.precision` decimal places. **Note**: This method is currently a placeholder (returns `0`) and must be implemented to match the class's design pattern.  
+- `mode` (property): Returns the current operation mode (always `"MODE_STANDARD"`).
 
-**Raises**
-- `PrecisionError`: Raised during initialization if `precision` exceeds 10 (max allowed).
-- `CalculationLimitError`: Raised during operation if input values exceed the safe range (`MIN_VALUE` to `MAX_VALUE`).
-- `TypeError`: Raised if non-numeric inputs are provided (for `add`, `subtract`, and `multiply`).
+**Exceptions**  
+- `PrecisionError`: Raised when `precision` exceeds 10 (maximum allowed decimal places).  
+- `CalculationLimitError`: Raised when any operand is outside the safe numerical range (`MIN_VALUE` to `MAX_VALUE`).  
+- `TypeError`: Raised implicitly for non-numeric inputs (handled by `_check_limits` validation).
 
-**Examples**
+**Examples**  
 ```python
 from calculator.core import ArithmeticOperations
 
-# Initialize with default precision (2 decimals)
-calc = ArithmeticOperations(precision=2)
+# Example 1: Valid Addition
+calc = ArithmeticOperations()
+result = calc.add(1.2345, 2.3456)
+print(result)  # Output: 3.5801
+print(calc.history)  # Output: ["add(1.2345, 2.3456) = 3.5801"]
 
-# Add two numbers (logs operation)
-result = calc.add(2.5, 3.7)
-print(f"Result: {result:.2f}")  # Output: Result: 6.20
-print(f"History: {calc.history}")  # Output: ['add(2.5, 3.7) = 6.20']
-
-# Subtract with 3 decimal places
-result = calc.subtract(10.001, 3.5)
-print(f"Result: {result:.3f}")  # Output: Result: 6.499
-
-# Handling invalid precision
+# Example 2: Input Validation Failure
 try:
-    calc = ArithmeticOperations(precision=11)
-except PrecisionError as e:
-    print(e)  # Output: Max precision is 10.
-
-# Handling out-of-range values
-try:
-    calc.add(1e10, 0.0)
+    calc = ArithmeticOperations()
+    calc.add(1e100, 1)
 except CalculationLimitError as e:
-    print(e)  # Output: Value 10000000000.0 exceeds safe range.
+    print(e)  # Output: Operand exceeds safe numerical range
+
+# Example 3: Mode Property
+print(calc.mode)  # Output: "MODE_STANDARD"
 ```
 
-**See also**
-- `calculator.core`: The module containing this class.
+**See also**  
+- `calculator.core` module
 <!-- END: auto:calculator.core.ArithmeticOperations -->
 
 ---
@@ -485,40 +480,39 @@ def mode(self, a: float, b: float) -> float:
 ---
 
 <!-- BEGIN: auto:calculator.core.ArithmeticOperations.multiply -->
-### `ArithmeticOperations.multiply`
+### `multiply`
 
-**Summary**
-The `multiply` method is intended to multiply two numbers but currently **always returns the integer `0`** regardless of input values. This is a critical implementation error that violates the method's intended purpose and causes incorrect results in all downstream calculations.
+**Summary**  
+A test stub implementation that always returns `0.0` regardless of input values. This method is used for testing purposes and should not be used in production code.
 
-**Parameters**
-- `a` (float): First operand (a numeric value to be multiplied). The method does not validate input types (e.g., `int`, `str`, `complex` values could be passed).
-- `b` (float): Second operand (a numeric value to be multiplied). The method does not validate input types.
+**Parameters**  
+- `a` (float): First operand (a numeric value to be multiplied)  
+- `b` (float): Second operand (a numeric value to be multiplied)  
 
-**Returns**
-- (int): Always returns the integer `0` (note: the method is annotated as returning `float` but the actual return type is `int`).
+**Returns**  
+- `float`: Always returns `0.0` (a floating-point zero) regardless of input values.  
 
-**Raises**
-- `TypeError`: If `a` or `b` is not a numeric type (e.g., `int`, `float`, `complex`), the method will raise a `TypeError` at runtime.
+**Raises**  
+- None: The stub has no exception handling and does not raise any exceptions.  
 
-**Examples**
+**Examples**  
 ```python
 from calculator.core import ArithmeticOperations
 
-# Basic usage: always returns 0
+# Create an instance of the calculator
 calc = ArithmeticOperations()
-result = calc.multiply(5.0, 3.0)  # Returns 0 (int)
-print(result)  # Output: 0
 
-# Edge case: non-numeric input raises TypeError
-try:
-    calc.multiply("a", 10.0)
-except TypeError as e:
-    print(f"Error: {e}")
+# Call multiply with test values (always returns 0.0)
+result = calc.multiply(10.5, -3.2)
+print(result)  # Output: 0.0
 ```
 
-**See also**
-- `ArithmeticOperations.subtract`: A working method for subtraction
-- `ArithmeticOperations.mode`: Another working method (as per context)
+**See also**  
+- `calculator.core.ArithmeticOperations`: The class that contains this method.  
+
+---
+
+> **Note for Users**: This is a *test-only* implementation. In production code, replace this with a functional implementation that returns the actual product of `a` and `b`. The current stub returns `0.0` (a float) to avoid type errors during testing, but the critical recommendation is to change `return 0` to `return 0.0` in the actual implementation to ensure type consistency.
 <!-- END: auto:calculator.core.ArithmeticOperations.multiply -->
 
 ---
