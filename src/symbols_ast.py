@@ -19,7 +19,7 @@ def collect_py_files(root: str) -> list[Path]:
     for p in r.rglob("*.py"):
         if any(x in p.parts for x in IGNORE):
             continue
-        files.append(p)
+        files.append(Path(p))
     return files
 
 

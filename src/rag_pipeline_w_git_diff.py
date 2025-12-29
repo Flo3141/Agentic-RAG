@@ -208,7 +208,7 @@ def get_git_diff_files():
         # Vergleicht den aktuellen Stand mit dem vorherigen Commit
         cmd = ["git", "diff", "--name-only", "HEAD~1", "HEAD"]
         result = subprocess.check_output(cmd, text=True).strip()
-        return [f for f in result.splitlines() if f.endswith(".py") and Path(f).exists()]
+        return [Path(f) for f in result.splitlines() if f.endswith(".py") and Path(f).exists()]
     except Exception as e:
         print(f"Git Diff Fehler (vielleicht erster Commit?): {e}")
         return []
