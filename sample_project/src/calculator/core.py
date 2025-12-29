@@ -24,6 +24,10 @@ class PrecisionError(CalculatorError):
     """Raised when requested precision is too high."""
     pass
 
+class TestError(CalculatorError):
+    """TestError."""
+    pass
+
 class CalculationLimitError(CalculatorError):
     """Raised when values exceed safe limits."""
     pass
