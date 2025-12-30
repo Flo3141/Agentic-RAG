@@ -3,7 +3,7 @@ import subprocess
 import sys
 from collections import defaultdict
 from pathlib import Path
-from langchain_core.output_parsers import StrOutputParser
+from langchain_core.output_parsers import StrOutputParser, JsonOutputParser
 from langchain_openai import ChatOpenAI
 
 # Import deiner bestehenden Module
@@ -12,6 +12,8 @@ from embed import Embedder
 from store_qdrant import QdrantStore
 from markdown_writer import MarkdownWriter
 
+from prompts import CODE_EXPERT_PROMPT, DOCS_EXPERT_PROMPT, DOCS_REVIEW_PROMPT
+
 # --- 1. Konfiguration ---
 LLM_API_BASE = "http://localhost:11434/v1"
 LLM_MODEL_NAME = "qwen3:4b"
@@ -19,9 +21,6 @@ LLM_API_KEY = "ollama"
 DOCS_ROOT = Path("./sample_project/docs")
 REPO_ROOT = Path("./sample_project")
 QDRANT_DATA_PATH = Path("./sample_project/qdrant_data")
-
-# --- 2. Prompts ---
-from prompts import CODE_EXPERT_PROMPT, DOCS_EXPERT_PROMPT
 
 
 class APILLM(ChatOpenAI):
@@ -106,14 +105,33 @@ def run_indexing(root_dir: str, embedder, store):
     return current_symbols, changed_symbols
 
 
-def generate_with_rag(llm, code_segment, embedder, store, current_symbol_name):
+def find_usages(symbol_name: str, root_dir: Path) -> str:
+    """Suche nach Verwendungen des Symbols im Code (einfaches Grep)."""
+    usages = []
+    try:
+        # Wir suchen rekursiv nach dem String
+        cmd = ["grep", "-r", symbol_name, str(root_dir)]
+        # Grep kann Fehler werfen (exit code 1), wenn nichts gefunden wird, daher try/except
+        try:
+            result = subprocess.check_output(cmd, text=True).strip()
+            lines = result.splitlines()
+            # Begrenze auf die ersten 10 Treffer, um Context kurz zu halten
+            usages = lines[:10]
+        except subprocess.CalledProcessError:
+            pass
+    except Exception as e:
+        print(f"Warning: Could not search usages: {e}")
+    
+    return "\n".join(usages) if usages else "No direct usages found."
+
+
+def generate_with_agentic_loop(llm, code_segment, embedder, store, current_symbol_name):
     """
-    Führt den klassischen RAG-Schritt aus:
-    Query -> Vektor-Suche -> Kontext -> LLM Generierung
+    Agentic RAG Pipeline mit Review-Loop.
+    Code Expert -> Docs Expert -> Reviewer (Agent) -> Feedback -> Code Expert ...
     """
 
-    # Retrieve the 5 most similar symbols form the vector db
-    # Only 4 will be used as context, as one hte the symbol itself
+    # 1. Retrieve RAG Context
     query_vec = embedder.encode([current_symbol_name])
     results = store.search(query_vec, k=5)
 
@@ -126,18 +144,69 @@ def generate_with_rag(llm, code_segment, embedder, store, current_symbol_name):
     context_str = "\n".join(context_lines) if context_lines else "No related context found."
     print(f"    [RAG Context]: {len(context_lines)} items found.")
 
-    # LLM like before
-    analyze_chain = CODE_EXPERT_PROMPT | llm | StrOutputParser()
-    analysis = analyze_chain.invoke({
-        "code": code_segment,
-        "context": context_str
-    })
-    docs_chain = DOCS_EXPERT_PROMPT | llm | StrOutputParser()
-    markdown = docs_chain.invoke({
-        "analysis": analysis,
-        "existing_docs": ""
-    })
-    return markdown
+    # 2. Find Usages (Impact Analysis)
+    usage_context = find_usages(current_symbol_name, REPO_ROOT)
+    
+    current_feedback = ""
+    current_docs = ""
+    
+    max_retries = 5
+    for i in range(max_retries):
+        print(f"    [Agent Loop] Iteration {i+1}/{max_retries}...")
+        
+        # A. Code Expert (Analysis)
+        analyze_chain = CODE_EXPERT_PROMPT | llm | StrOutputParser()
+        analysis = analyze_chain.invoke({
+            "code": code_segment,
+            "context": context_str,
+            "feedback": current_feedback
+        })
+        
+        # B. Docs Expert (Markdown Generation)
+        docs_chain = DOCS_EXPERT_PROMPT | llm | StrOutputParser()
+        current_docs = docs_chain.invoke({
+            "analysis": analysis
+        })
+        
+        # C. Reviewer (Reasoning Agent)
+        review_chain = DOCS_REVIEW_PROMPT | llm | JsonOutputParser()
+        try:
+            review_result = review_chain.invoke({
+                "code": code_segment,
+                "current_docs": current_docs,
+                "usage_context": usage_context
+            })
+            
+            status = review_result.get("status", "REVISION_NEEDED")
+            feedback = review_result.get("feedback", "")
+            reasoning = review_result.get("reasoning", "No reasoning provided.")
+            
+            print(f"      [Reviewer] Status: {status}")
+            
+            if status == "APPROVED":
+                print(f"      [Reviewer] Approved! Reasoning: {reasoning}")
+                return current_docs
+            
+            # If not approved, update feedback for next loop
+            print(f"      [Reviewer] Feedback: {feedback}")
+            current_feedback = f"Previous attempt was rejected. Reviewer feedback: {feedback}. Reviewer Reasoning: {reasoning}"
+            
+        except Exception as e:
+            print(f"      [Reviewer] Error parsing JSON or executing: {e}. Retrying loop...")
+            current_feedback = f"Previous answer caused a JSON error or execution fault: {e}. Please fix."
+
+    # If we fall through here, we failed to get approval
+    print(f"    [Agent Loop] Failed to get approval after {max_retries} iterations.")
+    
+    # Log failure
+    failure_log = Path("docs_review_failures.log")
+    with open(failure_log, "a", encoding="utf-8") as f:
+        f.write(f"\n--- Symbol: {current_symbol_name} ---\n")
+        f.write(f"Final Docs:\n{current_docs}\n")
+        f.write(f"Last Feedback:\n{current_feedback}\n")
+        f.write("-------------------------------------\n")
+        
+    return current_docs # Return best effort
 
 
 def get_git_diff_files():
@@ -251,8 +320,8 @@ def process_pipeline(llm):
                 print(f"    Fehler beim Lesen: {e}")
                 continue
 
-            # Call RAG pipeline
-            docs = generate_with_rag(llm, code_segment, embedder, store, sym.qualname)
+            # Call Agentic RAG pipeline
+            docs = generate_with_agentic_loop(llm, code_segment, embedder, store, sym.qualname)
             # Write using the markdown writer
             writer.write_section(file_path=md_file_path, symbol_id=sym.symbol_id, content=docs)
 
