@@ -12,3 +12,6 @@ Gib aber immernoch Haluzinationen / EIgeen Examples werden creaiert --> Die Exam
 Kann Kontext zwischen Funktionen erkennnen --> subtract raised \_check\_limits funktion --> Ist dann auch in See also drinne
 
 Manchaml kommt es dazu, dass als erster Einterag "Symbol" kommt, was fälschlicherweise als Finanz Symbol interpretiert wurde
+
+Beim RAG mit Git Diff kommt es zu einer Fehlermeldung am Ende des Pushes, da das Skirpt vor dem endgültigen Pushen noch die neuen Dokumentationen hinzufügt und dann einnen neuen Push startet. Der "alte" Push Aufruf wird zur Sicherheit abgebrochen, weil es nichts mehr zu pushen gibt, weil das das Skript schon erledigt hat.
+

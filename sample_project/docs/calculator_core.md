@@ -1,7 +1,5 @@
 # API Documentation: calculator_core
 
-
-
 <!-- BEGIN: auto:calculator.core.CalculatorError -->
 ### `CalculatorError`
 
@@ -57,8 +55,6 @@ except CalculatorError as e:
 - `InvalidInputError`: A custom subclass of `CalculatorError` for handling invalid input scenarios.
 <!-- END: auto:calculator.core.CalculatorError -->
 
----
-
 <!-- BEGIN: auto:calculator.core.PrecisionError -->
 ### `PrecisionError`
 
@@ -93,7 +89,54 @@ except PrecisionError as e:
 - `calculator.core.ArithmeticOperations._check_limits`: Method that validates precision before computation and raises `PrecisionError` when necessary.
 <!-- END: auto:calculator.core.PrecisionError -->
 
----
+<!-- BEGIN: auto:calculator.core.TestError -->
+### `TestError`
+
+**Summary**
+The `TestError` class is a custom exception subclass designed for testing purposes within the calculator module. It inherits directly from `CalculatorError` (a base error class in `calculator.core`), enabling it to be used as a specialized error type in test scenarios. This class serves no runtime functionality beyond being a placeholder for test-specific error conditions.
+
+**Parameters**
+- None
+
+**Returns**
+- None
+
+**Raises**
+- `TypeError`: When creating an instance without the required `message` argument (the base class `CalculatorError` expects a `message` string).
+- `AttributeError`: When attempting to call `TestError` as a function (e.g., `TestError()`).
+
+**Examples**
+```python
+# Example 1: Raising a Test Error in Test Code
+from calculator.core import TestError
+
+try:
+    raise TestError("Test failure")
+except TestError as e:
+    print(f"Caught test error: {e}")
+
+# Example 2: Using in Calculator's Test Mode
+class Calculator:
+    def __init__(self, test_mode=False):
+        self.test_mode = test_mode
+
+    def calculate(self, expression):
+        if self.test_mode:
+            raise TestError("Test mode: simulation error")
+
+# Example 3: Catching Test Errors in Error Handlers
+def handle_test_errors():
+    try:
+        calculator = Calculator(test_mode=True)
+        calculator.calculate("1+1")
+    except TestError as e:
+        print(f"Critical test failure: {e}")
+```
+
+**See also**
+- `CalculatorError` (base error class in `calculator.core`)
+- `calculator.core` (module containing the base error class)
+<!-- END: auto:calculator.core.TestError -->
 
 <!-- BEGIN: auto:calculator.core.CalculationLimitError -->
 ### `CalculationLimitError`
@@ -133,8 +176,6 @@ except CalculatorError as e:
 - `PrecisionError`: Handles precision issues (e.g., floating-point rounding errors).  
 - `CalculatorError`: The root exception class for all calculator errors.
 <!-- END: auto:calculator.core.CalculationLimitError -->
-
----
 
 <!-- BEGIN: auto:calculator.core.ArithmeticOperations -->
 ### `ArithmeticOperations`
@@ -181,8 +222,6 @@ print(calc.mode)  # Output: "MODE_STANDARD"
 - `calculator.core` module
 <!-- END: auto:calculator.core.ArithmeticOperations -->
 
----
-
 <!-- BEGIN: auto:calculator.core.ArithmeticOperations.__init__ -->
 ### `ArithmeticOperations.__init__`
 
@@ -227,8 +266,6 @@ except PrecisionError as e:
 - `calculator.core.ArithmeticOperations`: The calculator class that manages operations and history.
 <!-- END: auto:calculator.core.ArithmeticOperations.__init__ -->
 
----
-
 <!-- BEGIN: auto:calculator.core.ArithmeticOperations.mode -->
 ### `calculator.core.ArithmeticOperations.mode`
 
@@ -269,8 +306,6 @@ result = calculator.subtract(10, 5)  # Returns 5
 - `calculator.core.ArithmeticOperations.subtract`: Performs subtraction operations.
 - `calculator.core.ArithmeticOperations._log_op`: Internal logging method (not directly used by mode).
 <!-- END: auto:calculator.core.ArithmeticOperations.mode -->
-
----
 
 <!-- BEGIN: auto:calculator.core.ArithmeticOperations.add -->
 ### `calculator.core.ArithmeticOperations.add`
@@ -335,8 +370,6 @@ print(f"Total: {total:.4f} USD")
 - `calculator.core.ArithmeticOperations._check_limits`: Input validation
 <!-- END: auto:calculator.core.ArithmeticOperations.add -->
 
----
-
 <!-- BEGIN: auto:calculator.core.ArithmeticOperations.subtract -->
 ### `ArithmeticOperations.subtract`
 
@@ -391,7 +424,41 @@ print(result)  # Output: -1.0
 - `calculator.core.ArithmeticOperations._log_op`: Operation logging method
 <!-- END: auto:calculator.core.ArithmeticOperations.subtract -->
 
+<!-- BEGIN: auto:calculator.core.ArithmeticOperations.multiply -->
+### `multiply`
+
+**Summary**  
+A test stub implementation that always returns `0.0` regardless of input values. This method is used for testing purposes and should not be used in production code.
+
+**Parameters**  
+- `a` (float): First operand (a numeric value to be multiplied)  
+- `b` (float): Second operand (a numeric value to be multiplied)  
+
+**Returns**  
+- `float`: Always returns `0.0` (a floating-point zero) regardless of input values.  
+
+**Raises**  
+- None: The stub has no exception handling and does not raise any exceptions.  
+
+**Examples**  
+```python
+from calculator.core import ArithmeticOperations
+
+# Create an instance of the calculator
+calc = ArithmeticOperations()
+
+# Call multiply with test values (always returns 0.0)
+result = calc.multiply(10.5, -3.2)
+print(result)  # Output: 0.0
+```
+
+**See also**  
+- `calculator.core.ArithmeticOperations`: The class that contains this method.  
+
 ---
+
+> **Note for Users**: This is a *test-only* implementation. In production code, replace this with a functional implementation that returns the actual product of `a` and `b`. The current stub returns `0.0` (a float) to avoid type errors during testing, but the critical recommendation is to change `return 0` to `return 0.0` in the actual implementation to ensure type consistency.
+<!-- END: auto:calculator.core.ArithmeticOperations.multiply -->
 
 <!-- BEGIN: auto:calculator.core.ArithmeticOperations._check_limits -->
 ### `_check_limits`
@@ -428,8 +495,6 @@ except CalculationLimitError as e:
 - `ArithmeticOperations`: The class that owns this method and uses it internally for arithmetic operations
 - `CalculationLimitError`: The exception raised when input values exceed the defined limits
 <!-- END: auto:calculator.core.ArithmeticOperations._check_limits -->
-
----
 
 <!-- BEGIN: auto:calculator.core.ArithmeticOperations._log_op -->
 ### `_log_op`
@@ -476,94 +541,3 @@ def mode(self, a: float, b: float) -> float:
 **See also**
 - [ArithmeticOperations](https://example.com) (the class that uses this method)
 <!-- END: auto:calculator.core.ArithmeticOperations._log_op -->
-
----
-
-<!-- BEGIN: auto:calculator.core.ArithmeticOperations.multiply -->
-### `multiply`
-
-**Summary**  
-A test stub implementation that always returns `0.0` regardless of input values. This method is used for testing purposes and should not be used in production code.
-
-**Parameters**  
-- `a` (float): First operand (a numeric value to be multiplied)  
-- `b` (float): Second operand (a numeric value to be multiplied)  
-
-**Returns**  
-- `float`: Always returns `0.0` (a floating-point zero) regardless of input values.  
-
-**Raises**  
-- None: The stub has no exception handling and does not raise any exceptions.  
-
-**Examples**  
-```python
-from calculator.core import ArithmeticOperations
-
-# Create an instance of the calculator
-calc = ArithmeticOperations()
-
-# Call multiply with test values (always returns 0.0)
-result = calc.multiply(10.5, -3.2)
-print(result)  # Output: 0.0
-```
-
-**See also**  
-- `calculator.core.ArithmeticOperations`: The class that contains this method.  
-
----
-
-> **Note for Users**: This is a *test-only* implementation. In production code, replace this with a functional implementation that returns the actual product of `a` and `b`. The current stub returns `0.0` (a float) to avoid type errors during testing, but the critical recommendation is to change `return 0` to `return 0.0` in the actual implementation to ensure type consistency.
-<!-- END: auto:calculator.core.ArithmeticOperations.multiply -->
-
----
-
-<!-- BEGIN: auto:calculator.core.TestError -->
-### `TestError`
-
-**Summary**
-The `TestError` class is a custom exception subclass designed for testing purposes within the calculator module. It inherits directly from `CalculatorError` (a base error class in `calculator.core`), enabling it to be used as a specialized error type in test scenarios. This class serves no runtime functionality beyond being a placeholder for test-specific error conditions.
-
-**Parameters**
-- None
-
-**Returns**
-- None
-
-**Raises**
-- `TypeError`: When creating an instance without the required `message` argument (the base class `CalculatorError` expects a `message` string).
-- `AttributeError`: When attempting to call `TestError` as a function (e.g., `TestError()`).
-
-**Examples**
-```python
-# Example 1: Raising a Test Error in Test Code
-from calculator.core import TestError
-
-try:
-    raise TestError("Test failure")
-except TestError as e:
-    print(f"Caught test error: {e}")
-
-# Example 2: Using in Calculator's Test Mode
-class Calculator:
-    def __init__(self, test_mode=False):
-        self.test_mode = test_mode
-
-    def calculate(self, expression):
-        if self.test_mode:
-            raise TestError("Test mode: simulation error")
-
-# Example 3: Catching Test Errors in Error Handlers
-def handle_test_errors():
-    try:
-        calculator = Calculator(test_mode=True)
-        calculator.calculate("1+1")
-    except TestError as e:
-        print(f"Critical test failure: {e}")
-```
-
-**See also**
-- `CalculatorError` (base error class in `calculator.core`)
-- `calculator.core` (module containing the base error class)
-<!-- END: auto:calculator.core.TestError -->
-
----

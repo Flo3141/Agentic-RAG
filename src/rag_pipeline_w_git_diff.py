@@ -139,16 +139,16 @@ def run_indexing(root_dir: str, embedder, store):
         if sym.symbol_id in existing_hashes and existing_hashes[sym.symbol_id] == sym.hash:
             skipped_count += 1
             continue
-        changed_symbols.append(sym)
-        # Index only relevant symbols (Classes, functions)
+        # Index and document only relevant symbols (Classes, functions, methods)
         if sym.kind in ("class", "function", "method"):
+            changed_symbols.append(sym)
             to_embed.append(sym)
 
     print(f"{skipped_count} symbols not changed")
     print(f"Update necessary for {len(to_embed)} symbols.")
 
     if not to_embed:
-        return changed_symbols
+        return current_symbols, changed_symbols
 
     # Only embed the changed symbols
     texts = [f"{s.qualname}: {s.docstring}" for s in to_embed]
@@ -166,7 +166,7 @@ def run_indexing(root_dir: str, embedder, store):
 
     store.add(vectors, metadatas)
 
-    return changed_symbols
+    return current_symbols, changed_symbols
 
 
 def generate_with_rag(llm, code_segment, embedder, store, current_symbol_name):
@@ -208,7 +208,7 @@ def get_git_diff_files():
     # AKTUELL NOCH TEST MODUS
     print("TEST-MODUS: Simuliere Änderung in core.py")
     # Hier gibst du den Pfad an, den du testen möchtest
-    test_file = Path("../sample_project/src/calculator/core.py")
+    test_file = Path("./sample_project/src/calculator/core.py")
     return [test_file]
 
     try:
@@ -221,33 +221,52 @@ def get_git_diff_files():
         return []
 
 
+def get_current_branch():
+    """Ermittelt den Namen des aktuell ausgecheckten Git-Branches."""
+    try:
+        # Führt den Befehl aus und gibt den Branch-Namen als String zurück
+        branch = subprocess.check_output(
+            ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+            text=True
+        ).strip()
+        return branch
+    except subprocess.CalledProcessError:
+        # Fallback auf 'main', falls etwas schiefgeht
+        return "main"
+
+
 def git_commit_and_push_changes():
     """
     Staged die Doku und die Vektor-DB, committet sie und führt einen Push aus.
     """
     print("\nStaging changes (Docs & Vector DB)...")
+    # Branch ermitteln
+    current_branch = get_current_branch()
+    print(f"Detektierter Branch: {current_branch}")
+    try:
+        # 1. Dateien hinzufügen (Doku-Ordner und Vektor-Daten)
+        # Wir fügen explizit diese Pfade hinzu
+        subprocess.run(["git", "add", DOCS_ROOT, QDRANT_DATA_PATH], check=True)
 
-    # 1. Dateien hinzufügen (Doku-Ordner und Vektor-Daten)
-    # Wir fügen explizit diese Pfade hinzu
-    subprocess.run(["git", "add", DOCS_ROOT, QDRANT_DATA_PATH], check=True)
+        # 2. Prüfen, ob es überhaupt Änderungen gibt
+        status = subprocess.check_output(["git", "status", "--porcelain", DOCS_ROOT, QDRANT_DATA_PATH], text=True)
+        print(status)
+        if not status.strip():
+            print("Keine Änderungen an Doku oder DB erkannt. Alles aktuell.")
+            return
 
-    # 2. Prüfen, ob es überhaupt Änderungen gibt
-    status = subprocess.check_output(["git", "status", "--porcelain"], text=True)
+        print("Committing automated documentation updates...")
+        # 3. Automatischer Commit
+        subprocess.run(["git", "commit", "-m", "docs: auto-update documentation and vector DB via RAG pipeline"],
+                       check=True)
 
-    if not status.strip():
-        print("Keine Änderungen an Doku oder DB erkannt. Alles aktuell.")
-        return
-
-    print("Committing automated documentation updates...")
-    # 3. Automatischer Commit
-    subprocess.run(["git", "commit", "-m", "docs: auto-update documentation and vector DB via RAG pipeline"],
-                   check=True)
-
-    print("Pushing updates to remote...")
-    # 4. Push ausführen.
-    # WICHTIG: --no-verify verhindert, dass der Hook sich selbst endlos aufruft!
-    subprocess.run(["git", "push", "origin", "main", "--no-verify"], check=True)
-    print("All changes (Code, Docs, DB) successfully pushed.")
+        print(f"Pushing updates to origin {current_branch}...")
+        # 4. Push ausführen.
+        # WICHTIG: --no-verify verhindert, dass der Hook sich selbst endlos aufruft!
+        subprocess.run(["git", "push", "origin", current_branch, "--no-verify"], check=True)
+        print("All changes (Code, Docs, DB) successfully pushed.")
+    except subprocess.CalledProcessError as e:
+        print(f"Git-Fehler: {e}")
 
 
 def process_pipeline(llm):
@@ -256,14 +275,17 @@ def process_pipeline(llm):
     writer = MarkdownWriter(DOCS_ROOT)
 
     # Index repository
-    all_symbols = run_indexing(REPO_ROOT, embedder, store)
-    print(all_symbols)
+    all_symbols, changed_symbols = run_indexing(REPO_ROOT, embedder, store)
 
-    symbols_by_file = defaultdict(list)
+    changed_symbols_by_file = defaultdict(list)
+    all_symbols_by_file = defaultdict(list)
+    for sym in changed_symbols:
+        changed_symbols_by_file[sym.file].append(sym)
+
     for sym in all_symbols:
-        if sym.kind in ("class", "function", "method"):
-            symbols_by_file[sym.file].append(sym)
-    for file_path, file_symbols in symbols_by_file.items():
+        all_symbols_by_file[sym.file].append(sym)
+
+    for file_path, changed_file_symbols in changed_symbols_by_file.items():
         if "core.py" not in str(file_path):
             continue
 
@@ -280,9 +302,9 @@ def process_pipeline(llm):
 
         print(f"\nProcessing {base_name} with Standard RAG...")
 
-        file_symbols.sort(key=lambda s: s.start)
+        changed_file_symbols.sort(key=lambda s: s.start)
 
-        for sym in file_symbols:
+        for sym in changed_file_symbols:
             print(f"  > Symbol: {sym.qualname}")
 
             try:
@@ -297,8 +319,13 @@ def process_pipeline(llm):
             # Write using the markdown writer
             writer.write_section(file_path=md_file_path, symbol_id=sym.symbol_id, content=docs)
 
+        # Reorder the sections after all updates are done
+        all_file_symbols = all_symbols_by_file[file_path]
+        all_file_symbols.sort(key=lambda s: s.start)
+        writer.reorder_sections(file_path=md_file_path, ordered_symbol_ids=[s.symbol_id for s in all_file_symbols])
+
     store.close()
-    git_commit_and_push_changes()
+    # git_commit_and_push_changes()
 
 
 if __name__ == "__main__":

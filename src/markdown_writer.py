@@ -48,3 +48,52 @@ class MarkdownWriter:
 
         # Datei mit den Änderungen speichern
         file_path.write_text(text, encoding="utf-8")
+
+    def reorder_sections(self, file_path: Path, ordered_symbol_ids: list[str]):
+        """
+        Ordnet die Sektionen in der Datei neu, basierend auf der übergebenen Liste.
+        Entfernt auch Blöcke, die nicht mehr in der Liste sind.
+        """
+        if not file_path.exists():
+            return
+
+        text = file_path.read_text(encoding="utf-8")
+
+        # 1. Header extrahieren (alles vor dem ersten BEGIN-Block)
+        # Wir suchen den ersten Start-Marker
+        first_marker_match = re.search(r"<!-- BEGIN: auto:.*? -->", text)
+        if not first_marker_match:
+            # Keine Blöcke gefunden, nichts zu tun
+            return
+
+        header = text[:first_marker_match.start()].strip()
+
+        # 2. Alle Blöcke extrahieren
+        # Regex für vollständige Blöcke: matcht BEGIN...END
+        # Dotall ist wichtig!
+        block_pattern = re.compile(
+            r"(<!-- BEGIN: auto:(?P<id>[^ ]+) -->.*?<!-- END: auto:(?P=id) -->)",
+            re.DOTALL
+        )
+
+        blocks = {}
+        for match in block_pattern.finditer(text):
+            symbol_id = match.group("id")
+            content = match.group(0)
+            blocks[symbol_id] = content
+
+        # 3. Datei neu zusammensetzen
+        new_content_parts = [header]
+
+        for sym_id in ordered_symbol_ids:
+            if sym_id in blocks:
+                new_content_parts.append(blocks[sym_id])
+
+        # Zusammenfügen mit Trennern
+        new_text = "\n\n".join(new_content_parts)
+        # Am Ende sicherstellen, dass ein Newline ist
+        if not new_text.endswith("\n"):
+            new_text += "\n"
+
+        file_path.write_text(new_text, encoding="utf-8")
+        print(f"  [Writer] Reordered sections in: {file_path}")
