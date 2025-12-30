@@ -205,6 +205,12 @@ def generate_with_rag(llm, code_segment, embedder, store, current_symbol_name):
 
 def get_git_diff_files():
     """Holt alle geänderten .py Dateien im Vergleich zum vorherigen Stand."""
+    # AKTUELL NOCH TEST MODUS
+    print("TEST-MODUS: Simuliere Änderung in core.py")
+    # Hier gibst du den Pfad an, den du testen möchtest
+    test_file = Path("../sample_project/src/calculator/core.py")
+    return [test_file]
+
     try:
         # Vergleicht den aktuellen Stand mit dem vorherigen Commit
         cmd = ["git", "diff", "--name-only", "HEAD~1", "HEAD"]
