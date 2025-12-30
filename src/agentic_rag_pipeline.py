@@ -1,4 +1,5 @@
 import os
+import json
 import subprocess
 import sys
 from collections import defaultdict
@@ -12,15 +13,11 @@ from embed import Embedder
 from store_qdrant import QdrantStore
 from markdown_writer import MarkdownWriter
 
-from prompts import CODE_EXPERT_PROMPT, DOCS_EXPERT_PROMPT, DOCS_REVIEW_PROMPT
+from prompts import RESEARCH_LOOP_PROMPT, DOCS_EXPERT_PROMPT, IMPACT_LOOP_PROMPT
+from tools import list_directory, search_code, get_doc_for_symbol
 
 # --- 1. Konfiguration ---
-LLM_API_BASE = "http://localhost:11434/v1"
-LLM_MODEL_NAME = "qwen3:4b"
-LLM_API_KEY = "ollama"
-DOCS_ROOT = Path("./sample_project/docs")
-REPO_ROOT = Path("./sample_project")
-QDRANT_DATA_PATH = Path("./sample_project/qdrant_data")
+from config import LLM_API_BASE, LLM_MODEL_NAME, LLM_API_KEY, DOCS_ROOT, REPO_ROOT, QDRANT_DATA_PATH
 
 
 class APILLM(ChatOpenAI):
@@ -105,108 +102,153 @@ def run_indexing(root_dir: str, embedder, store):
     return current_symbols, changed_symbols
 
 
-def find_usages(symbol_name: str, root_dir: Path) -> str:
-    """Suche nach Verwendungen des Symbols im Code (einfaches Grep)."""
-    usages = []
+
+
+# Tool Mapping
+AVAILABLE_TOOLS = {
+    "list_directory": list_directory,
+    "search_code": search_code,
+    "get_doc_for_symbol": get_doc_for_symbol
+}
+
+def get_tools_description():
+    """Generates a string description of all available tools."""
+    desc = "Available Tools:\n"
+    for name, func in AVAILABLE_TOOLS.items():
+        desc += f"- {name}: {func.__doc__.strip() if func.__doc__ else 'No description'}\n"
+    return desc
+
+def execute_tool(name: str, args: dict) -> str:
+    """Executes a tool by name with arguments."""
+    if name not in AVAILABLE_TOOLS:
+        return f"Error: Tool {name} not found."
+    
+    tool_func = AVAILABLE_TOOLS[name]
     try:
-        # Wir suchen rekursiv nach dem String
-        cmd = ["grep", "-r", symbol_name, str(root_dir)]
-        # Grep kann Fehler werfen (exit code 1), wenn nichts gefunden wird, daher try/except
-        try:
-            result = subprocess.check_output(cmd, text=True).strip()
-            lines = result.splitlines()
-            # Begrenze auf die ersten 10 Treffer, um Context kurz zu halten
-            usages = lines[:10]
-        except subprocess.CalledProcessError:
-            pass
+        # Pydantic/LangChain tools usually expect a dict or string input
+        # If args is a dict, we pass as kwargs if the tool expects it, 
+        # or we rely on the tool's invoke method.
+        # This simple implementation tries to call the function directly if it's a @tool
+        
+        # Check if it is a langchain tool
+        if hasattr(tool_func, "invoke"):
+             return tool_func.invoke(args)
+        else:
+             # Fallback for plain functions
+             return tool_func(**args)
+             
     except Exception as e:
-        print(f"Warning: Could not search usages: {e}")
-    
-    return "\n".join(usages) if usages else "No direct usages found."
+        return f"Error executing tool '{name}': {e}"
 
-
-def generate_with_agentic_loop(llm, code_segment, embedder, store, current_symbol_name):
+def run_agent_loop(llm, prompt_template, initial_vars, max_steps=5):
     """
-    Agentic RAG Pipeline mit Review-Loop.
-    Code Expert -> Docs Expert -> Reviewer (Agent) -> Feedback -> Code Expert ...
+    Generic loop for an agent that uses tools.
     """
-
-    # 1. Retrieve RAG Context
-    query_vec = embedder.encode([current_symbol_name])
-    results = store.search(query_vec, k=5)
-
-    # Create the context with the similar symbols
-    context_lines = []
-    for res in results:
-        if res['qualname'] != current_symbol_name:
-            context_lines.append(f"- {res['qualname']} ({res['kind']}) from {res['file']}")
-
-    context_str = "\n".join(context_lines) if context_lines else "No related context found."
-    print(f"    [RAG Context]: {len(context_lines)} items found.")
-
-    # 2. Find Usages (Impact Analysis)
-    usage_context = find_usages(current_symbol_name, REPO_ROOT)
+    history = []
+    log_file = Path("agent_history.log")
     
-    current_feedback = ""
-    current_docs = ""
-    
-    max_retries = 5
-    for i in range(max_retries):
-        print(f"    [Agent Loop] Iteration {i+1}/{max_retries}...")
+    for i in range(max_steps):
+        print(f"      [Step {i+1}] Thinking...")
         
-        # A. Code Expert (Analysis)
-        analyze_chain = CODE_EXPERT_PROMPT | llm | StrOutputParser()
-        analysis = analyze_chain.invoke({
-            "code": code_segment,
-            "context": context_str,
-            "feedback": current_feedback
-        })
+        # Prepare context (history needs to be a string)
+        history_str = "\n".join(history)
         
-        # B. Docs Expert (Markdown Generation)
-        docs_chain = DOCS_EXPERT_PROMPT | llm | StrOutputParser()
-        current_docs = docs_chain.invoke({
-            "analysis": analysis
-        })
+        # Invoke LLM
+        chain = prompt_template | llm | StrOutputParser()
+        vars_with_history = {**initial_vars, "history": history_str}
         
-        # C. Reviewer (Reasoning Agent)
-        review_chain = DOCS_REVIEW_PROMPT | llm | JsonOutputParser()
         try:
-            review_result = review_chain.invoke({
-                "code": code_segment,
-                "current_docs": current_docs,
-                "usage_context": usage_context
-            })
+            response = chain.invoke(vars_with_history)
             
-            status = review_result.get("status", "REVISION_NEEDED")
-            feedback = review_result.get("feedback", "")
-            reasoning = review_result.get("reasoning", "No reasoning provided.")
+            # Basic JSON cleaning
+            cleaned = response.strip()
+            if cleaned.startswith("```json"): cleaned = cleaned[7:]
+            if cleaned.startswith("```"): cleaned = cleaned[3:]
+            if cleaned.endswith("```"): cleaned = cleaned[:-3]
+            cleaned = cleaned.strip()
             
-            print(f"      [Reviewer] Status: {status}")
+            data = json.loads(cleaned)
+            action = data.get("action")
             
-            if status == "APPROVED":
-                print(f"      [Reviewer] Approved! Reasoning: {reasoning}")
-                return current_docs
+            if action == "FINISH":
+                # Log Finish
+                with open(log_file, "a", encoding="utf-8") as f:
+                    f.write(f"\n[Step {i+1}] FINISHED\n")
+                return data
             
-            # If not approved, update feedback for next loop
-            print(f"      [Reviewer] Feedback: {feedback}")
-            current_feedback = f"Previous attempt was rejected. Reviewer feedback: {feedback}. Reviewer Reasoning: {reasoning}"
-            
-        except Exception as e:
-            print(f"      [Reviewer] Error parsing JSON or executing: {e}. Retrying loop...")
-            current_feedback = f"Previous answer caused a JSON error or execution fault: {e}. Please fix."
+            if action in AVAILABLE_TOOLS:
+                print(f"      [Tool] Calling {action} with {data.get('args')}")
+                tool_out = execute_tool(action, data.get("args", {}))
+                
+                # Truncate tool output if too long
+                if len(str(tool_out)) > 1000:
+                    tool_out_hist = str(tool_out)[:1000] + "...(truncated)"
+                else:
+                    tool_out_hist = str(tool_out)
+                
+                # Log Step
+                with open(log_file, "a", encoding="utf-8") as f:
+                    f.write(f"\n[Step {i+1}] Action: {action}\n")
+                    f.write(f"Args: {data.get('args')}\n")
+                    f.write(f"Result: {tool_out_hist}\n")
 
-    # If we fall through here, we failed to get approval
-    print(f"    [Agent Loop] Failed to get approval after {max_retries} iterations.")
+                history.append(f"Action: {action}\nArgs: {data.get('args')}\nResult: {tool_out_hist}\n")
+            else:
+                history.append(f"Error: Unknown action {action}")
+                with open(log_file, "a", encoding="utf-8") as f:
+                    f.write(f"\n[Step {i+1}] Error: Unknown action {action}\n")
+                
+        except json.JSONDecodeError:
+            print(f"      [Error] Invalid JSON from LLM: {response[:50]}...")
+            with open(log_file, "a", encoding="utf-8") as f:
+                 f.write(f"\n[Error] Invalid JSON received: {response}\n")
+            history.append(f"System: You produced invalid JSON. Please correct it.")
+        except Exception as e:
+            print(f"      [Error] {e}")
+            with open(log_file, "a", encoding="utf-8") as f:
+                 f.write(f"\n[Error] Exception: {e}\n")
+            history.append(f"System: Error occurred: {e}")
+            
+    return {"action": "FINISH", "error": "Max steps reached"}
+
+
+def run_research_phase(llm, code, context):
+    print("    [Phase 1] Researching...")
     
-    # Log failure
-    failure_log = Path("docs_review_failures.log")
-    with open(failure_log, "a", encoding="utf-8") as f:
-        f.write(f"\n--- Symbol: {current_symbol_name} ---\n")
-        f.write(f"Final Docs:\n{current_docs}\n")
-        f.write(f"Last Feedback:\n{current_feedback}\n")
-        f.write("-------------------------------------\n")
-        
-    return current_docs # Return best effort
+    tools_desc = get_tools_description()
+    
+    result = run_agent_loop(
+        llm, 
+        RESEARCH_LOOP_PROMPT, 
+        {
+            "code": code, 
+            "context": context,
+            "tools_info": tools_desc
+        },
+        max_steps=5
+    )
+    return result.get("analysis", "No analysis produced.")
+
+def run_impact_phase(llm, symbol_id, code, analysis):
+    print("    [Phase 3] Analyzing Impact...")
+    
+    tools_desc = get_tools_description()
+    
+    result = run_agent_loop(
+        llm,
+        IMPACT_LOOP_PROMPT,
+        {
+            "symbol_id": symbol_id, 
+            "code": code, 
+            "analysis": analysis,
+            "tools_info": tools_desc
+        },
+        max_steps=5
+    )
+    return result.get("impact_instructions", [])
+
+
+
 
 
 def get_git_diff_files():
@@ -291,6 +333,8 @@ def process_pipeline(llm):
     for sym in all_symbols:
         all_symbols_by_file[sym.file].append(sym)
 
+    impacted_symbols_log = []
+
     for file_path, changed_file_symbols in changed_symbols_by_file.items():
         if "core.py" not in str(file_path):
             continue
@@ -306,7 +350,7 @@ def process_pipeline(llm):
 
         base_name = Path(file_path).stem
 
-        print(f"\nProcessing {base_name} with Standard RAG...")
+        print(f"\nProcessing {base_name} with Agentic Research Pipeline...")
 
         changed_file_symbols.sort(key=lambda s: s.start)
 
@@ -320,10 +364,63 @@ def process_pipeline(llm):
                 print(f"    Fehler beim Lesen: {e}")
                 continue
 
-            # Call Agentic RAG pipeline
-            docs = generate_with_agentic_loop(llm, code_segment, embedder, store, sym.qualname)
-            # Write using the markdown writer
+            # 1. Pipeline: RESEARCH
+            # Get basic RAG context first
+            query_vec = embedder.encode([sym.qualname])
+            results = store.search(query_vec, k=5)
+            context_lines = [f"- {res['qualname']} ({res['kind']}) from {res['file']}" for res in results if res['qualname'] != sym.qualname]
+            context_str = "\n".join(context_lines) if context_lines else "No related context found."
+
+            analysis = run_research_phase(llm, code_segment, context_str)
+            
+            # 2. Pipeline: DOCS GENERATION
+            print("    [Phase 2] Generating Docs...")
+            docs_chain = DOCS_EXPERT_PROMPT | llm | StrOutputParser()
+            docs = docs_chain.invoke({"analysis": analysis, "existing_docs": ""})
+            
+            # Write Docs
             writer.write_section(file_path=md_file_path, symbol_id=sym.symbol_id, content=docs)
+            
+            # 3. Pipeline: IMPACT ANALYSIS
+            impact_instructions = run_impact_phase(llm, sym.symbol_id, code_segment, analysis)
+            
+            if impact_instructions:
+                print(f"    [Impact] Found {len(impact_instructions)} dependent symbols to update.")
+                for instr in impact_instructions:
+                    target_symbol_id = instr.get("symbol_id")
+                    print(f"      -> Updating {target_symbol_id}")
+                    
+                    # Generate update for dependent symbol
+                    # We treat the instructions as the "analysis" for the docs expert
+                    # And specifically pass the original docs to guide the edit
+                    update_docs = docs_chain.invoke({
+                        "analysis": f"UPDATE INSTRUCTION: {instr.get('update_instructions')}",
+                        "existing_docs": instr.get('original_docs')
+                    })
+                    
+                    # We need to find the correct file for this symbol. 
+                    # For simplicty, we scan our writer knowledge or look it up.
+                    # HERE: We assume the impact agent might have given us a hint, or we search?
+                    # Ideally we have a symbol->file mapping. 'all_symbols' has it.
+                    # Find file for target_symbol_id
+                    target_file = None
+                    for s in all_symbols:
+                        if s.symbol_id == target_symbol_id:
+                            target_file = s.file
+                            break
+                    
+                    if target_file:
+                         # Construct MD path for target
+                        src_index_t = target_file.rfind("src")
+                        file_path_split_t = target_file[src_index_t:].split(os.sep)
+                        md_file_name_t = "_".join(file_path_split_t[1:]).replace(".py", ".md")
+                        md_file_path_t = Path(DOCS_ROOT, md_file_name_t)
+                        
+                        writer.write_section(file_path=md_file_path_t, symbol_id=target_symbol_id, content=update_docs)
+                        writer.reorder_sections(md_file_path_t, [s.symbol_id for s in all_symbols_by_file[target_file]])
+                    else:
+                        print(f"      [Warning] Could not find file for symbol {target_symbol_id}")
+
 
         # Reorder the sections after all updates are done
         all_file_symbols = all_symbols_by_file[file_path]

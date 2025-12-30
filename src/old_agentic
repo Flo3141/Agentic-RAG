@@ -1,0 +1,106 @@
+def generate_with_agentic_loop(llm, code_segment, embedder, store, current_symbol_name):
+    """
+    Agentic RAG Pipeline mit Review-Loop.
+    Code Expert -> Docs Expert -> Reviewer (Agent) -> Feedback -> Code Expert ...
+    """
+
+    # 1. Retrieve RAG Context
+    query_vec = embedder.encode([current_symbol_name])
+    results = store.search(query_vec, k=5)
+
+    # Create the context with the similar symbols
+    context_lines = []
+    for res in results:
+        if res['qualname'] != current_symbol_name:
+            context_lines.append(f"- {res['qualname']} ({res['kind']}) from {res['file']}")
+
+    context_str = "\n".join(context_lines) if context_lines else "No related context found."
+    print(f"    [RAG Context]: {len(context_lines)} items found.")
+
+    # 2. Find Usages (Impact Analysis)
+    usage_context = find_usages(current_symbol_name, REPO_ROOT)
+    
+    current_feedback = ""
+    current_docs = ""
+    
+    max_retries = 5
+    for i in range(max_retries):
+        print(f"    [Agent Loop] Iteration {i+1}/{max_retries}...")
+        
+        # A. Code Expert (Analysis)
+        analyze_chain = CODE_EXPERT_PROMPT | llm | StrOutputParser()
+        analysis = analyze_chain.invoke({
+            "code": code_segment,
+            "context": context_str,
+            "feedback": current_feedback
+        })
+        
+        # B. Docs Expert (Markdown Generation)
+        docs_chain = DOCS_EXPERT_PROMPT | llm | StrOutputParser()
+        current_docs = docs_chain.invoke({
+            "analysis": analysis
+        })
+        
+        # C. Reviewer (Reasoning Agent)
+        # We use StrOutputParser instead of JsonOutputParser initially to handle potential markdown wrapping ourselves
+        review_chain = DOCS_REVIEW_PROMPT | llm | StrOutputParser()
+        try:
+            raw_review = review_chain.invoke({
+                "code": code_segment,
+                "current_docs": current_docs,
+                "usage_context": usage_context
+            })
+            
+            # Clean the output (remove markdown blocks if present)
+            cleaned_review = raw_review.strip()
+            if cleaned_review.startswith("```json"):
+                cleaned_review = cleaned_review[7:]
+            elif cleaned_review.startswith("```"):
+                cleaned_review = cleaned_review[3:]
+            
+            if cleaned_review.endswith("```"):
+                cleaned_review = cleaned_review[:-3]
+                
+            cleaned_review = cleaned_review.strip()
+            
+            try:
+                review_result = json.loads(cleaned_review)
+            except json.JSONDecodeError:
+                # Fallback: try to find the first { and last }
+                start = cleaned_review.find("{")
+                end = cleaned_review.rfind("}")
+                if start != -1 and end != -1:
+                    review_result = json.loads(cleaned_review[start:end+1])
+                else:
+                    raise ValueError(f"Could not find JSON in output: {raw_review[:100]}...")
+
+            status = review_result.get("status", "REVISION_NEEDED")
+            feedback = review_result.get("feedback", "")
+            reasoning = review_result.get("reasoning", "No reasoning provided.")
+            
+            print(f"      [Reviewer] Status: {status}")
+            
+            if status == "APPROVED":
+                print(f"      [Reviewer] Approved! Reasoning: {reasoning}")
+                return current_docs
+            
+            # If not approved, update feedback for next loop
+            print(f"      [Reviewer] Feedback: {feedback}")
+            current_feedback = f"Previous attempt was rejected. Reviewer feedback: {feedback}. Reviewer Reasoning: {reasoning}"
+            
+        except Exception as e:
+            print(f"      [Reviewer] Error parsing JSON or executing: {e}. Retrying loop...")
+            current_feedback = f"Previous answer caused a JSON error or execution fault: {e}. Please fix."
+
+    # If we fall through here, we failed to get approval
+    print(f"    [Agent Loop] Failed to get approval after {max_retries} iterations.")
+    
+    # Log failure
+    failure_log = Path("docs_review_failures.log")
+    with open(failure_log, "a", encoding="utf-8") as f:
+        f.write(f"\n--- Symbol: {current_symbol_name} ---\n")
+        f.write(f"Final Docs:\n{current_docs}\n")
+        f.write(f"Last Feedback:\n{current_feedback}\n")
+        f.write("-------------------------------------\n")
+        
+    return current_docs # Return best effort

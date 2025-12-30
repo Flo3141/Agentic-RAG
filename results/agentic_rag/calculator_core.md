@@ -116,53 +116,43 @@ except CalculationLimitError as e:
 <!-- BEGIN: auto:calculator.core.ArithmeticOperations -->
 ### `ArithmeticOperations`
 
-**Summary**  
-A calculator class that performs basic arithmetic operations with configurable precision (default 8 decimal places, maximum 10) and input validation. Each operation (addition and subtraction) is logged to a history list and audited via debug logging.
+**Summary**
+A calculator class that performs addition and subtraction with configurable precision (up to 10 decimal places), validates inputs against overflow/underflow limits, and maintains an audit history of operations.
 
-**Constructor Parameters**  
-- `precision` (int, optional): The precision for arithmetic operations. Default is 8, maximum is 10.
+**Parameters**
+- `precision` (int): The number of decimal places for precision. Must be between 0 and 10 (inclusive). Default value is 10.
 
-**Returns**  
-- (object): An instance of `ArithmeticOperations`.
+**Returns**
+- `ArithmeticOperations`: An instance of the calculator class with the specified precision.
 
-**Raises**  
-- `PrecisionError`: When the precision is not within the range [8, 10].  
-- `CalculationLimitError`: When input values exceed the predefined numerical limits (MIN_VALUE and MAX_VALUE, likely ±1e308).
+**Raises**
+- `PrecisionError`: When the specified precision is outside the valid range (0-10).
+- `CalculationLimitError`: When input values exceed the defined MIN_VALUE or MAX_VALUE limits.
 
-**Methods**  
-- `add(a, b)`: Adds two numbers with precision validation and logs the operation to the history list and audited via debug logging.  
-- `subtract(a, b)`: Subtracts two numbers with precision validation and logs the operation to the history list and audited via debug logging.  
-- `multiply(a, b)`: Placeholder method that returns 0 (not implemented for actual multiplication).
-
-**Properties**  
-- `mode`: The current operation mode, always `'standard'`.
-
-**Examples**  
+**Examples**
 ```python
 from arithmetic_operations import ArithmeticOperations
 
-# Initialize with default precision (8)
-calc = ArithmeticOperations()
+# Initialize with 5 decimal places precision
+calculator = ArithmeticOperations(precision=5)
 
 # Perform addition
-result = calc.add(1.23456789, 2.3456789)
-print(result)  # Output: 3.57924679
+result = calculator.add(1.23456, 2.34567)
+print(result)  # Output: 3.58023
 
 # Perform subtraction
-result = calc.subtract(5.0, 3.0)
-print(result)  # Output: 2.0
+result = calculator.subtract(5.0, 2.0)
+print(result)  # Output: 3.0
 
 # Multiply (placeholder)
-result = calc.multiply(10, 20)
+result = calculator.multiply(3, 4)
 print(result)  # Output: 0
+```
 
-# Get mode
-print(calc.mode)  # Output: 'standard'
-```  
-
-**See also**  
-- `PrecisionError`: Custom exception for precision validation.  
-- `CalculationLimitError`: Custom exception for input range validation.
+**See also**
+- `PrecisionError` (custom exception)
+- `CalculationLimitError` (custom exception)
+- `logging` module (for audit logging)
 <!-- END: auto:calculator.core.ArithmeticOperations -->
 
 <!-- BEGIN: auto:calculator.core.ArithmeticOperations.__init__ -->
@@ -204,26 +194,26 @@ print(calc.history)  # Output: ['2.5 + 3.7 = 6.2']
 ### `mode`
 
 **Summary**
-Returns the current operation mode as a string. This calculator always operates in standard mode, so the method returns the string "Standard".
+Returns the string `MODE_STANDARD`, representing the standard operation mode (e.g., basic arithmetic) in the calculator system.
 
 **Parameters**
-None
+- None
 
 **Returns**
-- `str`: The current operation mode string, which is always "Standard".
+- `str`: The string `MODE_STANDARD`, which is a constant defining the standard operation mode.
 
 **Raises**
-- `None`: This method does not raise any exceptions.
+- None
 
 **Examples**
 ```python
-calculator = Calculator()
-current_mode = calculator.mode()
-print(current_mode)  # Output: "Standard"
+# Get the standard mode string
+standard_mode = Calculator().mode()
+print(standard_mode)  # Output: 'MODE_STANDARD'
 ```
 
 **See also**
-- `Calculator.set_mode`: Method to change the operation mode.
+- `MODE_STANDARD`: The constant string representing the standard operation mode.
 <!-- END: auto:calculator.core.ArithmeticOperations.mode -->
 
 <!-- BEGIN: auto:calculator.core.ArithmeticOperations.add -->
