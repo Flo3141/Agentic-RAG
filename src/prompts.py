@@ -66,10 +66,11 @@ CRITICAL INSTRUCTIONS:
 
 
 RESEARCH_LOOP_PROMPT = PromptTemplate(
-    input_variables=["code", "context", "history"],
+    input_variables=["code", "context", "history", "tools_info"],
     template="""You are a Senior Technical Researcher (Agent).
 Your goal is to fully understand the provided code and its dependencies to produce a high-quality TECHNICAL ANALYSIS.
-You have access to tools to search the codebase.
+You have access to these Tools:
+{tools_info}
 
 Code to Analyze:
 ```python
@@ -84,7 +85,7 @@ History of your thoughts and tool outputs:
 
 Instructions:
 1. Analyze the code structure.
-2. If you see imports or function calls you don't understand, use `search_code` or `list_directory` to investigate them.
+2. If you see imports or function calls you don't understand, use the available tools to investigate them.
 3. Don't stop until you assume you have a COMPLETE understanding of what this code does and how it interacts with the system.
 4. When satisfied, you MUST output a final "tool call" named `FINISH` containing the analysis.
 
@@ -95,7 +96,7 @@ Output Format:
 Example Tool Call (JSON):
 {{
     "action": "search_code",
-    "args": {{"symbol_name": "SomeClass"}}
+    "args": {{"search_string": "SomeClass"}}
 }}
 
 Example Finish (JSON):
@@ -111,9 +112,11 @@ CRITICAL:
 )
 
 IMPACT_LOOP_PROMPT = PromptTemplate(
-    input_variables=["symbol_id", "code", "analysis", "history"],
+    input_variables=["symbol_id", "code", "analysis", "history", "tools_info"],
     template="""You are a Dependency Analyst (Agent).
 The following code has changed. Your job is to identify OTHER parts of the system that need their documentation updated because of this change.
+You have access to these Tools:
+{tools_info}
 
 Changed Symbol: {symbol_id}
 Code:

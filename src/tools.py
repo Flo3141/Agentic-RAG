@@ -1,34 +1,15 @@
-from typing import Optional
 from pathlib import Path
 from langchain_core.tools import tool
 from config import DOCS_ROOT, REPO_ROOT
 
 @tool
-def list_directory(dir_path: str = REPO_ROOT) -> str:
-    """List the contents of a directory.
-    
-    Args:
-        dir_path: The path to the directory. Defaults to code repository root specified in config.
+def search_code(search_string: str) -> str:
     """
-    try:
-        path = Path(dir_path)
-        if not path.exists():
-            return f"Error: Directory {dir_path} does not exist."
-        
-        items = []
-        for item in path.iterdir():
-            prefix = "[DIR] " if item.is_dir() else "[FILE]"
-            items.append(f"{prefix} {item.name}")
-        return "\n".join(sorted(items))
-    except Exception as e:
-        return f"Error listing directory: {e}"
-
-@tool
-def search_code(symbol_name: str) -> str:
-    """Search for a string in all files in the code directory.
+    Search for a string in all files in the code directory.
+    Returns the relative file path in the repository with the line which contains the string
     
     Args:
-        symbol_name: The string to search for.
+        search_string: The string to search for. Must not be "None"
     """
     usages = []
     try:
@@ -39,7 +20,7 @@ def search_code(symbol_name: str) -> str:
                 content = file_path.read_text(encoding="utf-8")
                 lines = content.splitlines()
                 for i, line in enumerate(lines):
-                    if symbol_name in line:
+                    if search_string in line:
                         # Format: relative_path:line_no: content (stripped)
                         try:
                             relative_path = file_path.relative_to(root)

@@ -14,11 +14,15 @@ from store_qdrant import QdrantStore
 from markdown_writer import MarkdownWriter
 
 from prompts import RESEARCH_LOOP_PROMPT, DOCS_EXPERT_PROMPT, IMPACT_LOOP_PROMPT
-from tools import list_directory, search_code, get_doc_for_symbol
+from tools import search_code, get_doc_for_symbol
 
 # --- 1. Konfiguration ---
 from config import LLM_API_BASE, LLM_MODEL_NAME, LLM_API_KEY, DOCS_ROOT, REPO_ROOT, QDRANT_DATA_PATH
 
+# Tool Mapping
+AVAILABLE_TOOLS = {
+    "search_code": search_code,
+}
 
 class APILLM(ChatOpenAI):
     def __init__(self, base_url: str, api_key: str, model_name: str, **kwargs):
@@ -102,15 +106,6 @@ def run_indexing(root_dir: str, embedder, store):
     return current_symbols, changed_symbols
 
 
-
-
-# Tool Mapping
-AVAILABLE_TOOLS = {
-    "list_directory": list_directory,
-    "search_code": search_code,
-    "get_doc_for_symbol": get_doc_for_symbol
-}
-
 def get_tools_description():
     """Generates a string description of all available tools."""
     desc = "Available Tools:\n"
@@ -118,27 +113,19 @@ def get_tools_description():
         desc += f"- {name}: {func.__doc__.strip() if func.__doc__ else 'No description'}\n"
     return desc
 
+
 def execute_tool(name: str, args: dict) -> str:
     """Executes a tool by name with arguments."""
     if name not in AVAILABLE_TOOLS:
         return f"Error: Tool {name} not found."
-    
+
     tool_func = AVAILABLE_TOOLS[name]
     try:
-        # Pydantic/LangChain tools usually expect a dict or string input
-        # If args is a dict, we pass as kwargs if the tool expects it, 
-        # or we rely on the tool's invoke method.
-        # This simple implementation tries to call the function directly if it's a @tool
-        
-        # Check if it is a langchain tool
-        if hasattr(tool_func, "invoke"):
-             return tool_func.invoke(args)
-        else:
-             # Fallback for plain functions
-             return tool_func(**args)
-             
+        # Invoke langchain tool
+        return tool_func.invoke(args)
     except Exception as e:
         return f"Error executing tool '{name}': {e}"
+
 
 def run_agent_loop(llm, prompt_template, initial_vars, max_steps=5):
     """
@@ -146,49 +133,49 @@ def run_agent_loop(llm, prompt_template, initial_vars, max_steps=5):
     """
     history = []
     log_file = Path("agent_history.log")
-    
+
     for i in range(max_steps):
-        print(f"      [Step {i+1}] Thinking...")
-        
+        print(f"      [Step {i + 1}] Thinking...")
+
         # Prepare context (history needs to be a string)
         history_str = "\n".join(history)
-        
+
         # Invoke LLM
         chain = prompt_template | llm | StrOutputParser()
         vars_with_history = {**initial_vars, "history": history_str}
-        
+
         try:
             response = chain.invoke(vars_with_history)
-            
+
             # Basic JSON cleaning
             cleaned = response.strip()
             if cleaned.startswith("```json"): cleaned = cleaned[7:]
             if cleaned.startswith("```"): cleaned = cleaned[3:]
             if cleaned.endswith("```"): cleaned = cleaned[:-3]
             cleaned = cleaned.strip()
-            
+
             data = json.loads(cleaned)
             action = data.get("action")
-            
+
             if action == "FINISH":
                 # Log Finish
                 with open(log_file, "a", encoding="utf-8") as f:
-                    f.write(f"\n[Step {i+1}] FINISHED\n")
+                    f.write(f"\n[Step {i + 1}] FINISHED\n")
                 return data
-            
+
             if action in AVAILABLE_TOOLS:
                 print(f"      [Tool] Calling {action} with {data.get('args')}")
                 tool_out = execute_tool(action, data.get("args", {}))
-                
+
                 # Truncate tool output if too long
                 if len(str(tool_out)) > 1000:
                     tool_out_hist = str(tool_out)[:1000] + "...(truncated)"
                 else:
                     tool_out_hist = str(tool_out)
-                
+
                 # Log Step
                 with open(log_file, "a", encoding="utf-8") as f:
-                    f.write(f"\n[Step {i+1}] Action: {action}\n")
+                    f.write(f"\n[Step {i + 1}] Action: {action}\n")
                     f.write(f"Args: {data.get('args')}\n")
                     f.write(f"Result: {tool_out_hist}\n")
 
@@ -196,32 +183,59 @@ def run_agent_loop(llm, prompt_template, initial_vars, max_steps=5):
             else:
                 history.append(f"Error: Unknown action {action}")
                 with open(log_file, "a", encoding="utf-8") as f:
-                    f.write(f"\n[Step {i+1}] Error: Unknown action {action}\n")
-                
+                    f.write(f"\n[Step {i + 1}] Error: Unknown action {action}\n")
+
         except json.JSONDecodeError:
             print(f"      [Error] Invalid JSON from LLM: {response[:50]}...")
             with open(log_file, "a", encoding="utf-8") as f:
-                 f.write(f"\n[Error] Invalid JSON received: {response}\n")
+                f.write(f"\n[Error] Invalid JSON received: {response}\n")
             history.append(f"System: You produced invalid JSON. Please correct it.")
         except Exception as e:
             print(f"      [Error] {e}")
             with open(log_file, "a", encoding="utf-8") as f:
-                 f.write(f"\n[Error] Exception: {e}\n")
+                f.write(f"\n[Error] Exception: {e}\n")
             history.append(f"System: Error occurred: {e}")
-            
-    return {"action": "FINISH", "error": "Max steps reached"}
+
+    # --- FALLBACK: Max steps reached ---
+    print(f"      [System] Max steps ({max_steps}) reached. Forcing final analysis.")
+    history.append("System: You have reached the maximum number of tool calls. You MUST now produce the final technical analysis based on the information you have. Do not call any more tools. Output the final JSON with action='FINISH'.")
+
+    # One last chance to produce the answer
+    history_str = "\n".join(history)
+    vars_with_history = {**initial_vars, "history": history_str}
+    
+    try:
+        response = chain.invoke(vars_with_history)
+        cleaned = response.strip()
+        if cleaned.startswith("```json"): cleaned = cleaned[7:]
+        if cleaned.startswith("```"): cleaned = cleaned[3:]
+        if cleaned.endswith("```"): cleaned = cleaned[:-3]
+        cleaned = cleaned.strip()
+
+        data = json.loads(cleaned)
+        
+        # If the agent still tries to call a tool, we just return the raw text as analysis
+        if data.get("action") == "FINISH":
+             return data
+        else:
+             # It tried to call a tool again or something else
+             return {"action": "FINISH", "analysis": str(data)}
+
+    except Exception as e:
+        # If it fails to produce JSON, we return the raw text
+        return {"action": "FINISH", "analysis": str(response)}
 
 
 def run_research_phase(llm, code, context):
     print("    [Phase 1] Researching...")
-    
+
     tools_desc = get_tools_description()
-    
+
     result = run_agent_loop(
-        llm, 
-        RESEARCH_LOOP_PROMPT, 
+        llm,
+        RESEARCH_LOOP_PROMPT,
         {
-            "code": code, 
+            "code": code,
             "context": context,
             "tools_info": tools_desc
         },
@@ -229,26 +243,24 @@ def run_research_phase(llm, code, context):
     )
     return result.get("analysis", "No analysis produced.")
 
+
 def run_impact_phase(llm, symbol_id, code, analysis):
     print("    [Phase 3] Analyzing Impact...")
-    
+
     tools_desc = get_tools_description()
-    
+
     result = run_agent_loop(
         llm,
         IMPACT_LOOP_PROMPT,
         {
-            "symbol_id": symbol_id, 
-            "code": code, 
+            "symbol_id": symbol_id,
+            "code": code,
             "analysis": analysis,
             "tools_info": tools_desc
         },
         max_steps=5
     )
     return result.get("impact_instructions", [])
-
-
-
 
 
 def get_git_diff_files():
@@ -333,8 +345,6 @@ def process_pipeline(llm):
     for sym in all_symbols:
         all_symbols_by_file[sym.file].append(sym)
 
-    impacted_symbols_log = []
-
     for file_path, changed_file_symbols in changed_symbols_by_file.items():
         if "core.py" not in str(file_path):
             continue
@@ -368,28 +378,29 @@ def process_pipeline(llm):
             # Get basic RAG context first
             query_vec = embedder.encode([sym.qualname])
             results = store.search(query_vec, k=5)
-            context_lines = [f"- {res['qualname']} ({res['kind']}) from {res['file']}" for res in results if res['qualname'] != sym.qualname]
+            context_lines = [f"- {res['qualname']} ({res['kind']}) from {res['file']}" for res in results if
+                             res['qualname'] != sym.qualname]
             context_str = "\n".join(context_lines) if context_lines else "No related context found."
 
             analysis = run_research_phase(llm, code_segment, context_str)
-            
+
             # 2. Pipeline: DOCS GENERATION
             print("    [Phase 2] Generating Docs...")
             docs_chain = DOCS_EXPERT_PROMPT | llm | StrOutputParser()
             docs = docs_chain.invoke({"analysis": analysis, "existing_docs": ""})
-            
+
             # Write Docs
             writer.write_section(file_path=md_file_path, symbol_id=sym.symbol_id, content=docs)
-            
+
             # 3. Pipeline: IMPACT ANALYSIS
             impact_instructions = run_impact_phase(llm, sym.symbol_id, code_segment, analysis)
-            
+
             if impact_instructions:
                 print(f"    [Impact] Found {len(impact_instructions)} dependent symbols to update.")
                 for instr in impact_instructions:
                     target_symbol_id = instr.get("symbol_id")
                     print(f"      -> Updating {target_symbol_id}")
-                    
+
                     # Generate update for dependent symbol
                     # We treat the instructions as the "analysis" for the docs expert
                     # And specifically pass the original docs to guide the edit
@@ -397,7 +408,7 @@ def process_pipeline(llm):
                         "analysis": f"UPDATE INSTRUCTION: {instr.get('update_instructions')}",
                         "existing_docs": instr.get('original_docs')
                     })
-                    
+
                     # We need to find the correct file for this symbol. 
                     # For simplicty, we scan our writer knowledge or look it up.
                     # HERE: We assume the impact agent might have given us a hint, or we search?
@@ -408,19 +419,18 @@ def process_pipeline(llm):
                         if s.symbol_id == target_symbol_id:
                             target_file = s.file
                             break
-                    
+
                     if target_file:
-                         # Construct MD path for target
+                        # Construct MD path for target
                         src_index_t = target_file.rfind("src")
                         file_path_split_t = target_file[src_index_t:].split(os.sep)
                         md_file_name_t = "_".join(file_path_split_t[1:]).replace(".py", ".md")
                         md_file_path_t = Path(DOCS_ROOT, md_file_name_t)
-                        
+
                         writer.write_section(file_path=md_file_path_t, symbol_id=target_symbol_id, content=update_docs)
                         writer.reorder_sections(md_file_path_t, [s.symbol_id for s in all_symbols_by_file[target_file]])
                     else:
                         print(f"      [Warning] Could not find file for symbol {target_symbol_id}")
-
 
         # Reorder the sections after all updates are done
         all_file_symbols = all_symbols_by_file[file_path]
