@@ -117,25 +117,25 @@ except CalculationLimitError as e:
 ### `ArithmeticOperations`
 
 **Summary**  
-A calculator class that performs basic arithmetic operations with configurable precision (default 8 decimal places, maximum 10) and input validation. Each operation (addition and subtraction) is logged to a history list and audited via debug logging.
+A calculator class that performs basic arithmetic operations (addition, subtraction, and multiplication) with configurable precision (up to 10 decimal places). The class validates input values against the range [MIN_VALUE, MAX_VALUE] (where MIN_VALUE = -1e300 and MAX_VALUE = 1e300), rounds results to the specified precision, and logs each operation to a history list. The class uses Python's logging module for auditing operations at the debug level.
 
 **Constructor Parameters**  
-- `precision` (int, optional): The precision for arithmetic operations. Default is 8, maximum is 10.
+- `precision` (int, optional): The number of decimal places for arithmetic operations. Default is 8. Must be an integer between 8 and 10 (inclusive).
 
 **Returns**  
 - (object): An instance of `ArithmeticOperations`.
 
 **Raises**  
-- `PrecisionError`: When the precision is not within the range [8, 10].  
-- `CalculationLimitError`: When input values exceed the predefined numerical limits (MIN_VALUE and MAX_VALUE, likely ±1e308).
+- `PrecisionError`: When the specified precision is not an integer in the range [8, 10].  
+- `CalculationLimitError`: When input values are outside the range [MIN_VALUE, MAX_VALUE] (MIN_VALUE = -1e300, MAX_VALUE = 1e300).
 
 **Methods**  
-- `add(a, b)`: Adds two numbers with precision validation and logs the operation to the history list and audited via debug logging.  
-- `subtract(a, b)`: Subtracts two numbers with precision validation and logs the operation to the history list and audited via debug logging.  
-- `multiply(a, b)`: Placeholder method that returns 0 (not implemented for actual multiplication).
+- `add(a, b)`: Adds two numbers with precision validation and logs the operation to the history list. The result is rounded to the specified precision. The operation is also logged via debug-level logging.  
+- `subtract(a, b)`: Subtracts two numbers with precision validation and logs the operation to the history list. The result is rounded to the specified precision. The operation is also logged via debug-level logging.  
+- `multiply(a, b)`: Placeholder method that returns 0 (not implemented for actual multiplication). This method is intentionally left as a test function.
 
 **Properties**  
-- `mode`: The current operation mode, always `'standard'`.
+- `mode`: A string property that always returns `'standard'`.
 
 **Examples**  
 ```python
@@ -158,7 +158,7 @@ print(result)  # Output: 0
 
 # Get mode
 print(calc.mode)  # Output: 'standard'
-```  
+```
 
 **See also**  
 - `PrecisionError`: Custom exception for precision validation.  

@@ -1,12 +1,12 @@
 import sys
 from collections import defaultdict
 from pathlib import Path
+
 from langchain_core.output_parsers import StrOutputParser
 from langchain_openai import ChatOpenAI
-from langchain_core.prompts import PromptTemplate
 
-import symbols_raw
 import symbols_ast
+import symbols_raw
 
 # --- 1. LLM & Prompt Konfiguration ---
 LLM_API_BASE = "http://localhost:11434/v1"
@@ -25,70 +25,7 @@ class APILLM(ChatOpenAI):
 
 
 # --- PROMPTS ---
-CODE_EXPERT_PROMPT = PromptTemplate(
-    input_variables=["code", "context"],
-    template="""You are a Senior Python Engineer (Code Expert).
-Your task is to analyze the following Python code and its context to understand its behavior, parameters, return values, and potential exceptions.
-
-Context (related symbols):
-{context}
-
-Code to Analyze:
-```python
-{code}
-```
-
-Provide a detailed technical analysis including:
-1. Summary of functionality.
-2. Parameters (name, type, description).
-3. Return value (type, description).
-4. Exceptions raised.
-5. Usage examples.
-"""
-)
-
-DOCS_EXPERT_PROMPT = PromptTemplate(
-    input_variables=["analysis", "existing_docs"],
-    template="""You are a Technical Writer (Documentation Expert).
-Your task is to generate high-quality Markdown API documentation based on the technical analysis provided by the Code Expert.
-
-Technical Analysis:
-{analysis}
-
-Existing Documentation (if any):
-{existing_docs}
-
-Generate the Markdown documentation following this structure:
-### `SymbolName`
-
-**Summary**
-...
-
-**Parameters**
-- `name` (type): description
-
-**Returns**
-- (type): description
-
-**Raises**
-- `Exception`: description
-
-**Examples**
-```python
-...
-```
-
-**See also**
-...
-
-CRITICAL INSTRUCTIONS:
-1. Output ONLY the Markdown content.
-2. DO NOT output any "thinking" process, reasoning, or internal monologue.
-3. DO NOT output any conversational text like "Here is the documentation".
-4. DO NOT wrap the output in markdown code blocks (e.g. ```markdown ... ```). Just output the raw markdown.
-"""
-)
-
+from prompts import CODE_EXPERT_PROMPT, DOCS_EXPERT_PROMPT
 def generate_docs_no_context(llm, code_segment: str):
     # Analyse with empty context
     analyze_chain = CODE_EXPERT_PROMPT | llm | StrOutputParser()
