@@ -13,7 +13,7 @@ from embed import Embedder
 from store_qdrant import QdrantStore
 from markdown_writer import MarkdownWriter
 
-from prompts import RESEARCH_LOOP_PROMPT, DOCS_EXPERT_PROMPT, IMPACT_LOOP_PROMPT
+from prompts import RESEARCH_LOOP_PROMPT, DOCS_EXPERT_PROMPT
 from tools import search_code, get_doc_for_symbol
 
 # --- 1. Konfiguration ---
@@ -242,9 +242,6 @@ def run_research_phase(llm, code, context):
         max_steps=5
     )
     return result.get("analysis", "No analysis produced.")
-
-
-def run_impact_phase(llm, symbol_id, code, analysis):
     print("    [Phase 3] Analyzing Impact...")
 
     tools_desc = get_tools_description()
@@ -391,46 +388,6 @@ def process_pipeline(llm):
 
             # Write Docs
             writer.write_section(file_path=md_file_path, symbol_id=sym.symbol_id, content=docs)
-
-            # 3. Pipeline: IMPACT ANALYSIS
-            impact_instructions = run_impact_phase(llm, sym.symbol_id, code_segment, analysis)
-
-            if impact_instructions:
-                print(f"    [Impact] Found {len(impact_instructions)} dependent symbols to update.")
-                for instr in impact_instructions:
-                    target_symbol_id = instr.get("symbol_id")
-                    print(f"      -> Updating {target_symbol_id}")
-
-                    # Generate update for dependent symbol
-                    # We treat the instructions as the "analysis" for the docs expert
-                    # And specifically pass the original docs to guide the edit
-                    update_docs = docs_chain.invoke({
-                        "analysis": f"UPDATE INSTRUCTION: {instr.get('update_instructions')}",
-                        "existing_docs": instr.get('original_docs')
-                    })
-
-                    # We need to find the correct file for this symbol. 
-                    # For simplicty, we scan our writer knowledge or look it up.
-                    # HERE: We assume the impact agent might have given us a hint, or we search?
-                    # Ideally we have a symbol->file mapping. 'all_symbols' has it.
-                    # Find file for target_symbol_id
-                    target_file = None
-                    for s in all_symbols:
-                        if s.symbol_id == target_symbol_id:
-                            target_file = s.file
-                            break
-
-                    if target_file:
-                        # Construct MD path for target
-                        src_index_t = target_file.rfind("src")
-                        file_path_split_t = target_file[src_index_t:].split(os.sep)
-                        md_file_name_t = "_".join(file_path_split_t[1:]).replace(".py", ".md")
-                        md_file_path_t = Path(DOCS_ROOT, md_file_name_t)
-
-                        writer.write_section(file_path=md_file_path_t, symbol_id=target_symbol_id, content=update_docs)
-                        writer.reorder_sections(md_file_path_t, [s.symbol_id for s in all_symbols_by_file[target_file]])
-                    else:
-                        print(f"      [Warning] Could not find file for symbol {target_symbol_id}")
 
         # Reorder the sections after all updates are done
         all_file_symbols = all_symbols_by_file[file_path]
