@@ -12,5 +12,6 @@ keywords = ["RAG", "Agentic", "Documentation"]
 dependencies = [
     "langchain",
     "numpy",
-    "qdrant-client"
+    "qdrant-client",
+    "langchain-openai"
 ]
