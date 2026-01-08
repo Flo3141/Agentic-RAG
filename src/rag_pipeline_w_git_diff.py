@@ -6,10 +6,9 @@ from pathlib import Path
 from langchain_core.output_parsers import StrOutputParser
 from langchain_openai import ChatOpenAI
 
-# Import deiner bestehenden Module
 from src.embed import Embedder
 from src.markdown_writer import MarkdownWriter
-from src.util import run_indexing, git_commit_and_push_changes, get_doc_for_symbol
+from src.util import run_indexing, git_commit_and_push_changes
 from src.store_qdrant import QdrantStore
 
 # --- 1. Konfiguration ---

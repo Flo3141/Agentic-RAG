@@ -1,0 +1,16 @@
+[project]
+name = "Agentic-RAG"
+version = "0.0.1"
+requires-python = ">=3.8"
+authors = [
+    { name = "Julian Krauss", email = "jkrauss@stud.hs-heilbronn.de" },
+    { name = "Robin Hefner", email = "rohefner@stud.hs-heilbronn.de" },
+    { name = "Florian Hauptmann", email = "fhauptmann@stud.hs-heilbronn.de" },
+]
+description = "Agentic RAG for Code documentation"
+keywords = ["RAG", "Agentic", "Documentation"]
+dependencies = [
+    "langchain",
+    "numpy",
+    "qdrant-client"
+]
