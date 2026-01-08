@@ -5,8 +5,8 @@ from pathlib import Path
 from langchain_core.output_parsers import StrOutputParser
 from langchain_openai import ChatOpenAI
 
-import symbols_ast
-import symbols_raw
+from src.symbols_ast import index_repo_ast
+from src.symbols_raw import index_repo_raw
 
 # --- 1. LLM & Prompt Konfiguration ---
 LLM_API_BASE = "http://localhost:11434/v1"
@@ -25,7 +25,7 @@ class APILLM(ChatOpenAI):
 
 
 # --- PROMPTS ---
-from prompts import CODE_EXPERT_PROMPT, DOCS_EXPERT_PROMPT
+from src.prompts import CODE_EXPERT_PROMPT, DOCS_EXPERT_PROMPT
 def generate_docs_no_context(llm, code_segment: str):
     # Analyse with empty context
     analyze_chain = CODE_EXPERT_PROMPT | llm | StrOutputParser()
@@ -39,7 +39,7 @@ def generate_docs_no_context(llm, code_segment: str):
 
 def evaluate_raw(root_dir: str, llm):
     print("\n--- Naive Raw Chunking ---")
-    chunks = symbols_raw.index_repo_raw(root_dir)
+    chunks = index_repo_raw(root_dir)
 
     # Group per script
     chunks_by_file = defaultdict(list)
@@ -69,7 +69,7 @@ def evaluate_raw(root_dir: str, llm):
 
 def evaluate_ast(root_dir: str, llm):
     print("\n--- AST Parsing ---")
-    symbols = symbols_ast.index_repo_ast(root_dir)
+    symbols = index_repo_ast(root_dir)
 
     # Group per script so that the docu is written in one MD file per script
     symbols_by_file = defaultdict(list)

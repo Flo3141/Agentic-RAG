@@ -8,16 +8,15 @@ from langchain_core.output_parsers import StrOutputParser, JsonOutputParser
 from langchain_openai import ChatOpenAI
 
 # Import deiner bestehenden Module
-import symbols_ast
-from embed import Embedder
-from store_qdrant import QdrantStore
-from markdown_writer import MarkdownWriter
+from src.embed import Embedder
+from src.store_qdrant import QdrantStore
+from src.markdown_writer import MarkdownWriter
 
-from prompts import RESEARCH_LOOP_PROMPT, DOCS_EXPERT_PROMPT
-from tools import search_code
-from util import get_doc_for_symbol, run_indexing, git_commit_and_push_changes
+from src.prompts import RESEARCH_LOOP_PROMPT, DOCS_EXPERT_PROMPT
+from src.tools import search_code
+from src.util import get_doc_for_symbol, run_indexing, git_commit_and_push_changes
 # --- 1. Konfiguration ---
-from config import LLM_API_BASE, LLM_MODEL_NAME, LLM_API_KEY, DOCS_ROOT, REPO_ROOT, QDRANT_DATA_PATH
+from src.config import LLM_API_BASE, LLM_MODEL_NAME, LLM_API_KEY, DOCS_ROOT, REPO_ROOT, QDRANT_DATA_PATH
 
 # Tool Mapping
 AVAILABLE_TOOLS = {
@@ -200,9 +199,6 @@ def process_pipeline(llm):
         all_symbols_by_file[sym.file].append(sym)
 
     for file_path, changed_file_symbols in changed_symbols_by_file.items():
-        if "core.py" not in str(file_path):
-            continue
-
         # Generates the MD file name
         # The name will be all directories and the final file joined with "_"
         # So all MD files can be found in the top level of the DOCS_ROOT
@@ -240,8 +236,7 @@ def process_pipeline(llm):
             # 2. Pipeline: DOCS GENERATION
             print("    [Phase 2] Generating Docs...")
             docs_chain = DOCS_EXPERT_PROMPT | llm | StrOutputParser()
-            existing_docs = get_doc_for_symbol(sym.symbol_id)
-            docs = docs_chain.invoke({"analysis": analysis, "existing_docs": existing_docs})
+            docs = docs_chain.invoke({"analysis": analysis})
 
             # Write Docs
             writer.write_section(file_path=md_file_path, symbol_id=sym.symbol_id, content=docs)

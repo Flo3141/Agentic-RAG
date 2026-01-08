@@ -1,15 +1,15 @@
 import os
 import sys
-from pathlib import Path
 from collections import defaultdict
+from pathlib import Path
+
 from langchain_core.output_parsers import StrOutputParser
 from langchain_openai import ChatOpenAI
-from langchain_core.prompts import PromptTemplate
 
-from embed import Embedder
+from src.embed import Embedder
 from src.markdown_writer import MarkdownWriter
+from src.store_qdrant import QdrantStore
 from src.symbols_ast import index_repo_ast
-from store_qdrant import QdrantStore
 
 # --- 1. Konfiguration ---
 LLM_API_BASE = "http://localhost:11434/v1"
@@ -18,7 +18,7 @@ LLM_API_KEY = "ollama"
 DOCS_ROOT = Path("../sample_project/docs")
 
 # --- 2. Prompts ---
-from prompts import CODE_EXPERT_PROMPT, DOCS_EXPERT_PROMPT
+from src.prompts import CODE_EXPERT_PROMPT, DOCS_EXPERT_PROMPT
 
 class APILLM(ChatOpenAI):
     def __init__(self, base_url: str, api_key: str, model_name: str, **kwargs):
@@ -150,9 +150,6 @@ def evaluate_rag(root_dir: str, llm):
             symbols_by_file[sym.file].append(sym)
 
     for file_path, file_symbols in symbols_by_file.items():
-        if "core.py" not in str(file_path):
-            continue
-
         # Generaste the MD file name
         # The name will be all directories and the final file joined with "_"
         # So all MD files can be found in the top level of the DOCS_ROOT

@@ -3,7 +3,7 @@ import pprint
 from pathlib import Path
 import ast
 from typing import List
-from types_ast import Symbol
+from src.types_ast import Symbol
 
 IGNORE = [".venv", "site-packages", "build", "dist", "__pycache__", ".git", ".idea", ".vscode"]
 

@@ -1,7 +1,6 @@
 """
 Core logic for the sample calculator application.
 Contains advanced error handling and logging configurations.
-This file is specifically designed to showcase that parsing the raw code can lead to problems
 """
 import logging
 from typing import List
@@ -15,7 +14,7 @@ handler.setFormatter(formatter)
 logger.addHandler(handler)
 logger.setLevel(logging.INFO)
 
-# Custom Exceptions (More context that eats up lines)
+# Custom Exceptions 
 class CalculatorError(Exception):
     """Base class for all calculator exceptions."""
     pass
@@ -36,8 +35,7 @@ class CalculationLimitError(CalculatorError):
 MAX_VALUE = 1e12
 MIN_VALUE = -1e12
 DEFAULT_PRECISION = 2
-MODE_STANDARD = "Standard"
-MODE_SCIENTIFIC = "Scientific"
+CURRENT_MODE = "Scientific"
 
 class ArithmeticOperations:
     """
@@ -59,8 +57,8 @@ class ArithmeticOperations:
 
     @property
     def mode(self) -> str:
-        """Returns the current operation mode."""
-        return MODE_STANDARD
+        """Returns the current operation mode. Changed Default Mode"""
+        return CURRENT_MODE
 
     def add(self, a: float, b: float) -> float:
         """

@@ -7,10 +7,10 @@ from langchain_core.output_parsers import StrOutputParser
 from langchain_openai import ChatOpenAI
 
 # Import deiner bestehenden Module
-from embed import Embedder
-from markdown_writer import MarkdownWriter
-from src.util import run_indexing, git_commit_and_push_changes
-from store_qdrant import QdrantStore
+from src.embed import Embedder
+from src.markdown_writer import MarkdownWriter
+from src.util import run_indexing, git_commit_and_push_changes, get_doc_for_symbol
+from src.store_qdrant import QdrantStore
 
 # --- 1. Konfiguration ---
 LLM_API_BASE = "http://localhost:11434/v1"
@@ -21,7 +21,7 @@ REPO_ROOT = Path("./sample_project")
 QDRANT_DATA_PATH = Path("./sample_project/qdrant_data")
 
 # --- 2. Prompts ---
-from prompts import CODE_EXPERT_PROMPT, DOCS_EXPERT_PROMPT
+from src.prompts import CODE_EXPERT_PROMPT, DOCS_EXPERT_PROMPT
 
 
 class APILLM(ChatOpenAI):
@@ -58,9 +58,9 @@ def generate_with_rag(llm, code_segment, embedder, store, current_symbol_name):
         "context": context_str
     })
     docs_chain = DOCS_EXPERT_PROMPT | llm | StrOutputParser()
+
     markdown = docs_chain.invoke({
-        "analysis": analysis,
-        "existing_docs": ""
+        "analysis": analysis
     })
     return markdown
 
@@ -83,9 +83,6 @@ def process_pipeline(llm):
         all_symbols_by_file[sym.file].append(sym)
 
     for file_path, changed_file_symbols in changed_symbols_by_file.items():
-        if "core.py" not in str(file_path):
-            continue
-
         # Generaste the MD file name
         # The name will be all directories and the final file joined with "_"
         # So all MD files can be found in the top level of the DOCS_ROOT

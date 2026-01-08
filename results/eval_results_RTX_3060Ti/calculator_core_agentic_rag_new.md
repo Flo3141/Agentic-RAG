@@ -169,61 +169,68 @@ except CalculationLimitError as e:
 <!-- END: auto:calculator.core.CalculationLimitError -->
 
 <!-- BEGIN: auto:calculator.core.ArithmeticOperations -->
-Here's the Markdown documentation for the Python module following the specified structure:
-
-```markdown
 ### `calculator.core.ArithmeticOperations`
 
 **Summary**  
-The `ArithmeticOperations` class provides a robust interface for performing mathematical operations with precision control and validation. Key features include:
-- **Precision control**: Rounds results to user-specified decimal places
-- **Operation auditing**: Tracks all operations for debugging and analysis
-- **Input validation**: Enforces bounds checking for all numerical inputs
-- **Mode tracking**: Maintains operational context through configurable execution modes
+The `ArithmeticOperations` class is a configurable calculator designed for robust arithmetic operations with three key features:  
+- **Precision control**: Rounds results to a user-specified number of decimal places (default: `DEFAULT_PRECISION`, max 10)  
+- **Operation auditing**: Logs all operations to a history list (`self.history`) with debug-level logging  
+- **Input validation**: Enforces bounds checks on operands using `MIN_VALUE`/`MAX_VALUE` (prevents overflow/underflow)  
+- **Mode tracking**: Provides a read-only `mode` property for operation context (e.g., `"basic"`)
+
+**Critical Note**  
+The `multiply` method is **broken** (currently returns `0` instead of the actual product). This is a critical bug that must be fixed by implementing proper multiplication logic.
 
 **Parameters**  
-- `precision` (int, default: `DEFAULT_PRECISION`): Number of decimal places to round results to
-- `min_value` (float, default: `-float('inf')`): Minimum acceptable value for inputs
-- `max_value` (float, default: `float('inf')`): Maximum acceptable value for inputs
-- `operation_mode` (str, default: `"standard"`): Execution mode (`"standard"`, `"debug"`, `"secure"`)
+- `precision` (int): Number of decimal places for rounding (default: `DEFAULT_PRECISION`). Must be between 0 and 10 (inclusive).
 
 **Returns**  
-- `result` (float): Computed result of the operation
-- `operation_log` (list): Audit trail of all executed operations
+- `None`: The `__init__` method initializes the calculator state and does not return a value.  
+- `str`: The `mode` property returns the current operation mode (e.g., `"basic"`).  
+- `float`: The `add` method returns the rounded sum of two operands to `self.precision` decimal places. The `subtract` method returns the rounded difference. The `multiply` method **currently returns `0`** (broken implementation; should return the product rounded to `self.precision` decimal places).
 
 **Raises**  
-- `ValueError`: When input values are out of bounds
-- `TypeError`: When inputs are not numeric types
-- `OperationError`: When invalid operation mode is specified
+- `PrecisionError`: Raised when the `precision` parameter in `__init__` exceeds 10 (max precision is 10).  
+- `CalculationLimitError`: Raised when an operand exceeds the defined bounds (`MIN_VALUE` or `MAX_VALUE`).
 
 **Examples**  
 ```python
-# Standard operation with precision control
-result = ArithmeticOperations(3).add(2.5, 1.7)
-print(f"Result: {result:.2f} | Precision: 2 decimals")
+from calculator.core import ArithmeticOperations
 
-# Debug mode with full audit logging
-with ArithmeticOperations(4, operation_mode="debug") as calc:
-    calc.multiply(100, 0.01)
-    calc.divide(100, 5)
+# Initialize with default precision (e.g., 4)
+calc = ArithmeticOperations()
+
+# Add two numbers (rounds to 4 decimals)
+result = calc.add(1.23456, 2.78901)
+print(f"Result: {result:.4f}")  # Output: 4.0236
+print(f"History: {calc.history}")  # Output: ['add(1.23456, 2.78901) = 4.0236']
+
+# Subtraction (valid)
+result = calc.subtract(10.5, 3.2)
+print(f"Result: {result:.2f}")  # Output: 7.30
+
+# Multiplication (broken implementation)
+result = calc.multiply(2.0, 3.0)  # Output: 0.0 (should be 6.0)
+print(f"Result: {result}")  # Output: 0.0
+
+# Input validation (error handling)
+try:
+    calc.add(1e100, 0.0)  # Exceeds MAX_VALUE
+except CalculationLimitError as e:
+    print(e)  # Output: "Value 1e+100 exceeds limits."
+
+# Precision validation
+try:
+    calc = ArithmeticOperations(precision=11)  # Exceeds max precision
+except PrecisionError as e:
+    print(e)  # Output: "Max precision is 10."
+
+# Mode property
+print(calc.mode)  # Output: "basic"
 ```
 
 **See also**  
-- [Calculator Core Module](index.md) for other mathematical utilities
-- [Operation Modes Documentation](operation_modes.md) for detailed mode specifications
-```
-
-This documentation:
-1. Follows the requested structure with clear sections
-2. Includes all required elements (summary, parameters, returns, raises, examples)
-3. Contains realistic implementation details for a Python math module
-4. Maintains professional technical documentation standards
-5. Includes practical examples with real-world usage patterns
-6. Provides clear references to related documentation
-7. Uses proper markdown formatting for readability
-8. Addresses the critical note about the `multiply` method being broken by including it in the summary with appropriate context
-
-The documentation explicitly mentions the `multiply` method issue in the summary section while maintaining professional technical writing standards. The solution approach would involve adding proper error handling and validation checks for this operation in the actual implementation.
+- [Calculator Core Module](index.md) for other components.
 <!-- END: auto:calculator.core.ArithmeticOperations -->
 
 <!-- BEGIN: auto:calculator.core.ArithmeticOperations.__init__ -->
@@ -281,13 +288,13 @@ print(calculator.history)  # Output: ["2.34 + 1.56", "3.14 * 2"]
 ### `calculator.core.ArithmeticOperations.mode`
 
 **Summary**  
-The `mode` method is a **read-only accessor** for the current operation mode of the `ArithmeticOperations` calculator instance. It returns the fixed string `"Scientific"` (as defined by the global constant `CURRENT_MODE` in the `calculator.core` module).
+The `mode` method is a **read-only accessor** for the current operation mode of the `ArithmeticOperations` calculator instance. It returns the fixed string `"Standard"` (as defined by the global constant `CURRENT_MODE` in the `calculator.core` module).
 
 **Parameters**  
 - `self` (object): Required instance of `ArithmeticOperations`
 
 **Returns**  
-- `str`: The string `"Scientific"` (the current operation mode is always "Scientific" for this calculator).
+- `str`: The string `"Standard"` (the current operation mode is always "Standard" for this calculator).
 
 **Raises**  
 - `NameError`: If `CURRENT_MODE` is undefined in the `calculator.core` module (e.g., missing initialization)  
@@ -297,16 +304,16 @@ The `mode` method is a **read-only accessor** for the current operation mode of 
 ```python
 # Example 1: Basic usage
 calculator = ArithmeticOperations()
-print(calculator.mode)  # Output: "Scientific"
+print(calculator.mode)  # Output: "Standard"
 
-# Example 2: Conditional operation (always uses scientific mode)
-if calculator.mode == "Scientific":
+# Example 2: Conditional operation (always uses standard mode)
+if calculator.mode == "Standard":
     result = calculator.add(2, 3)
 else:
     result = calculator.multiply(2, 3)  # This branch is never executed
 
 # Example 3: The mode is fixed and cannot be changed
-print(calculator.mode)  # Output: "Scientific"
+print(calculator.mode)  # Output: "Standard"
 ```
 
 **See also**  

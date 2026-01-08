@@ -23,15 +23,12 @@ Provide a detailed technical analysis including:
 )
 
 DOCS_EXPERT_PROMPT = PromptTemplate(
-    input_variables=["analysis", "existing_docs"],
+    input_variables=["analysis"],
     template="""You are a Technical Writer (Documentation Expert).
 Your task is to generate high-quality Markdown API documentation based on the technical analysis provided by the Code Expert.
 
 Technical Analysis:
 {analysis}
-
-Existing Documentation (if any):
-{existing_docs}
 
 Generate the Markdown documentation following this structure:
 ### `SymbolName`

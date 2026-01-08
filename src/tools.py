@@ -1,6 +1,9 @@
 from pathlib import Path
+
 from langchain_core.tools import tool
-from config import DOCS_ROOT, REPO_ROOT
+
+from src.config import REPO_ROOT
+
 
 @tool
 def search_code(search_string: str) -> str:
