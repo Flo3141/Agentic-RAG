@@ -1,4 +1,4 @@
 RAG Pipeline (Git Diff) New
 Calls: 24
-Tokens: 104328
-Time: 802.15 seconds
+Tokens: 99322
+Time: 761.17 seconds

@@ -78,11 +78,13 @@ def run_agent_loop(llm, prompt_template, initial_vars, max_steps=5):
 
             data = json.loads(cleaned)
             action = data.get("action")
+            thought = data.get("thought", "No reasoning provided.")
 
             if action == "FINISH":
                 # Log Finish
                 with open(log_file, "a", encoding="utf-8") as f:
-                    f.write(f"\n[Step {i + 1}] FINISHED\n")
+                    f.write(f"\n[Step {i + 1}] Reasoning: {thought}\n")
+                    f.write(f"[Step {i + 1}] FINISHED\n")
                 return data
 
             if action in AVAILABLE_TOOLS:
@@ -97,7 +99,8 @@ def run_agent_loop(llm, prompt_template, initial_vars, max_steps=5):
 
                 # Log Step
                 with open(log_file, "a", encoding="utf-8") as f:
-                    f.write(f"\n[Step {i + 1}] Action: {action}\n")
+                    f.write(f"\n[Step {i + 1}] Reasoning: {thought}\n")
+                    f.write(f"[Step {i + 1}] Action: {action}\n")
                     f.write(f"Args: {data.get('args')}\n")
                     f.write(f"Result: {tool_out_hist}\n")
 
@@ -164,22 +167,6 @@ def run_research_phase(llm, code, context):
         max_steps=5
     )
     return result.get("analysis", "No analysis produced.")
-    print("    [Phase 3] Analyzing Impact...")
-
-    tools_desc = get_tools_description()
-
-    result = run_agent_loop(
-        llm,
-        IMPACT_LOOP_PROMPT,
-        {
-            "symbol_id": symbol_id,
-            "code": code,
-            "analysis": analysis,
-            "tools_info": tools_desc
-        },
-        max_steps=5
-    )
-    return result.get("impact_instructions", [])
 
 
 def process_pipeline(llm):

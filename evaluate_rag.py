@@ -143,8 +143,8 @@ if __name__ == "__main__":
 
     target_dir = "./sample_project"
 
-    eval_llm_new(target_dir, llm, metrics)
+    # eval_llm_new(target_dir, llm, metrics)
     # eval_rag_new(llm, metrics)
     # eval_rag_update(llm, metrics)
     # eval_agentic_rag_new(llm, metrics)
-    # eval_agentic_rag_update(llm, metrics)
+    eval_agentic_rag_update(llm, metrics)

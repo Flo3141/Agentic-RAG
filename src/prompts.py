@@ -89,15 +89,18 @@ Instructions:
 Output Format:
 - If you need information: Call a tool.
 - If you are done: Output a JSON with action="FINISH".
+- ALWAYS include a "thought" field explaining your reasoning.
 
 Example Tool Call (JSON):
 {{
+    "thought": "I need to find the class definition of X to understand its methods.",
     "action": "search_code",
     "args": {{"search_string": "SomeClass"}}
 }}
 
 Example Finish (JSON):
 {{
+    "thought": "I have gathered all necessary information.",
     "action": "FINISH",
     "analysis": "The class X inherits from Y... It works by..."
 }}
