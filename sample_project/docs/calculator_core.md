@@ -59,83 +59,105 @@ except PrecisionError as e:
 ### `TestError`
 
 **Summary**
-A test-specific exception class used to simulate error conditions during testing without modifying core functionality. This class is intentionally empty (`pass`) to serve as a placeholder for test error scenarios.
+A custom exception class for testing purposes in the calculator module. This class inherits from `CalculatorError` and serves as a specialized error type with no additional implementation.
 
 **Parameters**
-- `None`: This class has no parameters.
+- None
 
 **Returns**
-- `None`: This class does not return any value.
+- None
 
 **Raises**
-- `TestError`: This class is designed to be instantiated and raised as a test-specific exception. It does not contain any error handling logic and is used solely for testing purposes.
+- `TestError`: A test-specific exception that is raised during testing.
 
 **Examples**
 ```python
-from calculator.core import TestError
-
-try:
-    raise TestError("Test error message")
-except TestError as e:
-    print(f"Caught test error: {e}")
+raise TestError()
 ```
 
 **See also**
-- `calculator.core.CalculatorError`: The base error class for the calculator module.
-- `calculator.core.PrecisionError`: A subclass of `CalculatorError` for precision-related errors.
-- `calculator.core.CalculationLimitError`: A subclass of `CalculatorError` for calculation limit errors.
+- `calculator.core.CalculatorError`: The base exception class for all calculation errors.
+- `calculator.core.PrecisionError`: An exception for precision-related errors.
+- `calculator.core.CalculationLimitError`: An exception for calculation limit errors.
 <!-- END: auto:calculator.core.TestError -->
 
 <!-- BEGIN: auto:calculator.core.CalculationLimitError -->
+### `CalculationLimitError`
 
+**Summary**
+CalculationLimitError is a custom exception class that inherits from `CalculatorError` (the base exception class for the calculator module). It is specifically raised when arithmetic operations encounter values that exceed safe computational limits.
+
+**Parameters**
+None
+
+**Returns**
+None
+
+**Raises**
+- `CalculationLimitError`: This exception is raised when arithmetic operations encounter values that exceed safe computational limits.
+
+**Examples**
+```python
+from calculator.core import ArithmeticOperations
+
+try:
+    # This operation would exceed safe computational limits
+    ArithmeticOperations(1e300, 1e300)
+except CalculationLimitError as e:
+    print(e)
+```
+
+**See also**
+- `CalculatorError`: The base exception class for the calculator module.
+- `ArithmeticOperations`: The class that raises this exception via its `_check_limits` method.
 <!-- END: auto:calculator.core.CalculationLimitError -->
 
 <!-- BEGIN: auto:calculator.core.ArithmeticOperations -->
 ### `ArithmeticOperations`
 
 **Summary**
-A calculator class that supports basic arithmetic operations (addition, subtraction, and multiplication) with configurable precision (default: 4 decimal places, maximum: 10 decimal places). The class validates input values against a range of [-1e10, 1e10] and logs each operation to a history list for audit purposes using Python's logging module.
+A calculator class that supports configurable precision (up to 10 decimal places) and operation auditing. The class validates input values against a range of [-1e300, 1e300], rounds results to the specified precision, and logs each operation to a history list.
 
 **Attributes**
-- `CURRENT_MODE` (str): The current operation mode (default: 'standard'). This constant determines the behavior of arithmetic operations.
+- `DEFAULT_PRECISION` (int): The default precision for rounding results (10 decimal places).
+- `CURRENT_MODE` (str): The current operation mode (default 'standard').
+- `MIN_VALUE` (float): The minimum allowed value (-1e300).
+- `MAX_VALUE` (float): The maximum allowed value (1e300).
 
 **Methods**
-- `add(self, a: float, b: float) -> float`: Adds two numbers with the current precision setting and returns the result rounded to the specified decimal places.
-- `subtract(self, a: float, b: float) -> float`: Subtracts the second number from the first with the current precision setting and returns the result rounded to the specified decimal places.
-- `multiply(self, a: float, b: float) -> float`: Multiplies two numbers with the current precision setting. **This method is a placeholder and always returns 0.0**.
+- `__init__(self, precision=10)`: Initializes the calculator with the specified precision. The precision must be an integer between 0 and 10 (inclusive).
+- `add(self, a, b)`: Adds two numbers and returns the result after rounding to the specified precision. Input values are validated against MIN_VALUE and MAX_VALUE.
+- `subtract(self, a, b)`: Subtracts two numbers and returns the result after rounding to the specified precision. Input values are validated against MIN_VALUE and MAX_VALUE.
+- `multiply(self, a, b)`: Multiplies two numbers (placeholder function that returns 0). *Note: This method is a test function and is not intended for production use. It is included for demonstration purposes only. (German comment: "Testfunktion")*
+- `divide(self, a, b)`: Divides two numbers and returns the result after rounding to the specified precision. Input values are validated against MIN_VALUE and MAX_VALUE. Raises `ZeroDivisionError` if `b` is 0.
+- `log_operation(self, operation, result)`: Logs an operation to the history list. The operation is a string describing the operation (e.g., "add"), and the result is the computed value.
 
 **Raises**
-- `CalculationLimitError`: Raised when input values are outside the range [-1e10, 1e10].
-- `ValueError`: Raised if the precision setting is not within the range [0, 10].
+- `ValueError`: If input values are outside the allowed range [MIN_VALUE, MAX_VALUE].
+- `ValueError`: If precision is not an integer between 0 and 10 (inclusive).
+- `ZeroDivisionError`: If the divisor is zero in `divide`.
 
 **Examples**
 ```python
-import logging
+from arithmetic_operations import ArithmeticOperations
 
-# Configure logging (for demonstration purposes)
-logging.basicConfig(level=logging.INFO)
+# Initialize with default precision
+calculator = ArithmeticOperations()
 
-# Create an instance of ArithmeticOperations
-arithmetic = ArithmeticOperations()
+# Add two numbers
+result = calculator.add(1.2345, 6.789)
+print(result)  # Output: 8.0235
 
-# Perform addition
-result = arithmetic.add(1.2345, 2.3456)
-print(f"Addition result: {result}")
+# Multiply (placeholder)
+result = calculator.multiply(2, 3)
+print(result)  # Output: 0
 
-# Perform subtraction
-result = arithmetic.subtract(5.0, 3.0)
-print(f"Subtraction result: {result}")
-
-# Perform multiplication (always returns 0)
-result = arithmetic.multiply(10.0, 20.0)
-print(f"Multiplication result: {result}")
-
-# Check the current mode
-print(f"Current mode: {arithmetic.CURRENT_MODE}")
+# Log an operation
+calculator.log_operation("add", result)
 ```
 
 **See also**
-- `CalculationLimitError`: Custom exception for input value validation.
+- `arithmetic_operations` module for more details on the module-level constants and logger configuration.
 <!-- END: auto:calculator.core.ArithmeticOperations -->
 
 <!-- BEGIN: auto:calculator.core.ArithmeticOperations.__init__ -->
@@ -173,24 +195,24 @@ calculator = ArithmeticOperations(precision=5)
 Returns the current operation mode of the calculator as a string.
 
 **Parameters**
-- None
+None
 
 **Returns**
-- (str): The current operation mode as a string (e.g., "Scientific")
+- `str`: The current operation mode (e.g., "Standard", "Scientific", etc.)
 
 **Raises**
 - None
 
 **Examples**
 ```python
-from calculator.core import Calculator
+from calculator.core import ArithmeticOperations
 
-calc = Calculator()
-print(calc.mode())  # Output: "Scientific"
+current_mode = ArithmeticOperations.mode()
+print(current_mode)  # Output: "Standard"
 ```
 
 **See also**
-- `CURRENT_MODE` (module-level constant)
+- `set_mode` (in `calculator.core`): Sets the operation mode.
 <!-- END: auto:calculator.core.ArithmeticOperations.mode -->
 
 <!-- BEGIN: auto:calculator.core.ArithmeticOperations.add -->
@@ -321,26 +343,30 @@ arithmetic._check_limits(1e13)   # Raises CalculationLimitError
 ### `_log_op`
 
 **Summary**
-A private helper method that records the inputs and output of an arithmetic operation to the operation history and the debug logger for auditing and debugging purposes.
+A private helper method that records the history of arithmetic operations for debugging and traceability. This method is invoked internally by arithmetic operation methods (e.g., `multiply`, `subtract`) after computing the result.
 
 **Parameters**
-- `op_name` (str): The name of the arithmetic operation (e.g., "multiply", "subtract", "mode")
-- `*operands` (any): The input operands for the operation
-- `result` (any): The result of the operation
+- `op` (str): The name of the arithmetic operation (e.g., "multiply", "subtract").
+- `a` (float): The first operand.
+- `b` (float): The second operand.
+- `res` (float): The result of the operation.
 
 **Returns**
-None
+- None: This method does not return any value.
 
 **Raises**
-- `Exception`: If an error occurs while recording the operation (e.g., logger failure or history update failure)
+- None: This method does not raise exceptions.
 
 **Examples**
 ```python
-calc._log_op("multiply", 5, 3, 15)
+# Example of internal usage (not directly callable)
+# This method is called by arithmetic operation methods (e.g., multiply) after computing the result.
+# For instance, in the multiply method:
+#   result = a * b
+#   self._log_op("multiply", a, b, result)
 ```
 
 **See also**
 - `calculator.core.ArithmeticOperations.multiply`
 - `calculator.core.ArithmeticOperations.subtract`
-- `calculator.core.ArithmeticOperations.mode`
 <!-- END: auto:calculator.core.ArithmeticOperations._log_op -->

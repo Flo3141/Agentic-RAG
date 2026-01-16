@@ -1,4 +1,7 @@
 import subprocess
+import hashlib
+import uuid
+
 from pathlib import Path
 
 from src.config import DOCS_ROOT, QDRANT_DATA_PATH
@@ -46,19 +49,26 @@ def run_indexing(root_dir: str, embedder, store):
     changed_files = get_git_diff_files()
     if not changed_files:
         print("No python files changed.")
-        return
+        return [], [], []
 
     print(f"Process change in: {changed_files}")
 
     # 1. Code parsen
     current_symbols = index_repo_ast(root_dir, changed_files)
+    # Helper: Map file path -> set of current symbol_ids
+    current_symbols_by_file = {}
+    for sym in current_symbols:
+        s_file = str(Path(sym.file))
+        if s_file not in current_symbols_by_file:
+            current_symbols_by_file[s_file] = set()
+        current_symbols_by_file[s_file].add(sym.symbol_id)
 
     # Create lookup map of all symbol_ids with corresponding hashes from the Qdrant DB
     existing_hashes = {}
+    existing_symbols_by_file = {}
 
     try:
-        # Get all entries of the db, get only the payload, not the vectors --> the payload contains the symbol_id and the hash
-        # We should do this in a loop when the repo is big, but this will suffice for now
+        # Get all entries of the db, get only the payload
         res = store.client.scroll(
             collection_name=store.collection_name,
             limit=10000,
@@ -70,9 +80,40 @@ def run_indexing(root_dir: str, embedder, store):
             payload = point.payload
             if "symbol_id" in payload and "hash" in payload:
                 existing_hashes[payload["symbol_id"]] = payload["hash"]
-
+                
+                # Organize by file to detect deletions
+                if "file" in payload:
+                    p_file = str(Path(payload["file"]))
+                    if p_file not in existing_symbols_by_file:
+                        existing_symbols_by_file[p_file] = set()
+                    existing_symbols_by_file[p_file].add(payload["symbol_id"])
     except Exception as e:
         print(f"Could not read db {e}")
+
+    # --- Detect and Delete Removed Symbols ---
+    deleted_ids_all = []
+    for c_file_path in changed_files:
+        c_file_str = str(c_file_path)
+        
+        curr_ids = current_symbols_by_file.get(c_file_str, set())
+        db_ids = existing_symbols_by_file.get(c_file_str, set())
+        
+        # Deleted = in DB but not in Current
+        deleted_ids = db_ids - curr_ids
+        if deleted_ids:
+            print(f"Detected {len(deleted_ids)} deleted symbols in {c_file_str}: {list(deleted_ids)}")
+            deleted_ids_all.extend(list(deleted_ids))
+
+    if deleted_ids_all:
+        point_ids_to_delete = []
+        for sid in deleted_ids_all:
+            # Reconstruct point ID from symbol ID hash
+            hash_val = hashlib.md5(sid.encode("utf-8")).hexdigest()
+            point_id = str(uuid.UUID(hex=hash_val))
+            point_ids_to_delete.append(point_id)
+            
+        print(f"Deleting {len(point_ids_to_delete)} symbols from Vector DB...")
+        store.delete(point_ids_to_delete)
 
     # Get differences
     changed_symbols = []
@@ -92,7 +133,7 @@ def run_indexing(root_dir: str, embedder, store):
     print(f"Update necessary for {len(to_embed)} symbols.")
 
     if not to_embed:
-        return current_symbols, changed_symbols
+        return current_symbols, changed_symbols, changed_files
 
     # Only embed the changed symbols
     texts = [f"{s.qualname}: {s.docstring}" for s in to_embed]
@@ -110,7 +151,7 @@ def run_indexing(root_dir: str, embedder, store):
 
     store.add(vectors, metadatas)
 
-    return current_symbols, changed_symbols
+    return current_symbols, changed_symbols, changed_files
 
 
 def get_git_diff_files():

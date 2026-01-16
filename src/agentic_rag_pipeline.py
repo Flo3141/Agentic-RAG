@@ -82,8 +82,11 @@ def run_agent_loop(llm, prompt_template, initial_vars, max_steps=5):
 
             if action == "FINISH":
                 # Log Finish
+                analysis = data.get("analysis", "No analysis provided.")
                 with open(log_file, "a", encoding="utf-8") as f:
                     f.write(f"\n[Step {i + 1}] Reasoning: {thought}\n")
+                    f.write(f"[Step {i + 1}] Analysis: {analysis}\n")
+
                     f.write(f"[Step {i + 1}] FINISHED\n")
                 return data
 
@@ -175,7 +178,7 @@ def process_pipeline(llm):
     writer = MarkdownWriter(DOCS_ROOT)
 
     # Index repository
-    all_symbols, changed_symbols = run_indexing(REPO_ROOT, embedder, store)
+    all_symbols, changed_symbols, changed_files_list = run_indexing(REPO_ROOT, embedder, store)
 
     changed_symbols_by_file = defaultdict(list)
     all_symbols_by_file = defaultdict(list)
@@ -185,11 +188,17 @@ def process_pipeline(llm):
     for sym in all_symbols:
         all_symbols_by_file[sym.file].append(sym)
 
-    for file_path, changed_file_symbols in changed_symbols_by_file.items():
+    # Iterate over actual changed files (including deletions)
+    for file_path_path in changed_files_list:
+        file_path = str(file_path_path)
+        
         # Generates the MD file name
         # The name will be all directories and the final file joined with "_"
         # So all MD files can be found in the top level of the DOCS_ROOT
         # ONLY THE FILES WITHIN THE SRC FOLDER WILL BE DOCUMENTED
+        if "src" not in file_path:
+            continue
+
         src_index = file_path.rfind("src")
         file_path_split = file_path[src_index:].split(os.sep)
         md_file_name = "_".join(file_path_split[1:]).replace(".py", ".md")
@@ -199,6 +208,7 @@ def process_pipeline(llm):
 
         print(f"\nProcessing {base_name} with Agentic Research Pipeline...")
 
+        changed_file_symbols = changed_symbols_by_file.get(file_path, [])
         changed_file_symbols.sort(key=lambda s: s.start)
 
         for sym in changed_file_symbols:
@@ -229,7 +239,7 @@ def process_pipeline(llm):
             writer.write_section(file_path=md_file_path, symbol_id=sym.symbol_id, content=docs)
 
         # Reorder the sections after all updates are done
-        all_file_symbols = all_symbols_by_file[file_path]
+        all_file_symbols = all_symbols_by_file.get(file_path, [])
         all_file_symbols.sort(key=lambda s: s.start)
         writer.reorder_sections(file_path=md_file_path, ordered_symbol_ids=[s.symbol_id for s in all_file_symbols])
 

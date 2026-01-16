@@ -1,10 +1,9 @@
 
-import re
-import json
 import logging
+import re
 import sys
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Any
+from typing import Dict, List, Any
 
 # Ensure project root is in sys.path
 current_file = Path(__file__).resolve()
@@ -13,7 +12,7 @@ if str(project_root) not in sys.path:
     sys.path.append(str(project_root))
 
 from langchain_openai import ChatOpenAI
-from langchain_core.prompts import ChatPromptTemplate, PromptTemplate
+from langchain_core.prompts import PromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 
 # Import project modules

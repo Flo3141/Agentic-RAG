@@ -67,6 +67,18 @@ class QdrantStore:
             points=points
         )
 
+    def delete(self, point_ids: List[str]):
+        """Deletes points from the collection by their IDs."""
+        if not point_ids:
+            return
+            
+        self.client.delete(
+            collection_name=self.collection_name,
+            points_selector=models.PointIdsList(
+                points=point_ids
+            )
+        )
+
     def search(self, query_vector: np.ndarray, k: int = 5) -> List[Dict[str, Any]]:
         if query_vector.ndim > 1:
             query_vector = query_vector[0]  # Take first if batch
