@@ -61,7 +61,7 @@ def eval_rag_new(llm, metrics):
     metrics.reset()
     start_time = time.time()
     try:
-        rag_pipeline_w_git_diff.process_pipeline(llm)
+        rag_pipeline_w_git_diff.process_pipeline(llm, test_run=True)
     except Exception as e:
         print(f"Error in RAG Pipeline: {e}")
     end_time = time.time()
@@ -79,7 +79,7 @@ def eval_rag_update(llm, metrics):
     metrics.reset()
     start_time = time.time()
     try:
-        rag_pipeline_w_git_diff.process_pipeline(llm)
+        rag_pipeline_w_git_diff.process_pipeline(llm, test_run=True)
     except Exception as e:
         print(f"Error in RAG Pipeline: {e}")
     end_time = time.time()
@@ -97,7 +97,7 @@ def eval_agentic_rag_new(llm, metrics):
     metrics.reset()
     start_time = time.time()
     try:
-        agentic_rag_pipeline.process_pipeline(llm)
+        agentic_rag_pipeline.process_pipeline(llm, test_run=True)
     except Exception as e:
         print(f"Error in Agentic RAG Pipeline: {e}")
     end_time = time.time()
@@ -115,7 +115,7 @@ def eval_agentic_rag_update(llm, metrics):
     metrics.reset()
     start_time = time.time()
     try:
-        agentic_rag_pipeline.process_pipeline(llm)
+        agentic_rag_pipeline.process_pipeline(llm, test_run=True)
     except Exception as e:
         print(f"Error in Agentic RAG Pipeline: {e}")
     end_time = time.time()

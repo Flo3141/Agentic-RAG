@@ -16,7 +16,6 @@ class Embedder:
         self._cache = {}
 
     def encode(self, texts: List[str]) -> np.ndarray:
-        # TODO Maybe make the embeddings persistent on the disk, not only in memory?
         to_encode = []
         indices = []
         results = [None] * len(texts)

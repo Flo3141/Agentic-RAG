@@ -39,21 +39,21 @@ def get_doc_for_symbol(symbol_id: str) -> str:
     return f"No documentation found for symbol: {symbol_id}"
 
 
-def run_indexing(root_dir: str, embedder, store):
+def run_indexing(root_dir: str, embedder, store, test_run=False):
     """
     Reads the code, creates the embeddings and saves them to qdrant
     """
     print("\n--- STEP 1: Indexing Repository (Knowledge Base) ---")
 
     # 1. Find changed files
-    changed_files = get_git_diff_files()
+    changed_files = get_git_diff_files(test_run)
     if not changed_files:
         print("No python files changed.")
         return [], [], []
 
     print(f"Process change in: {changed_files}")
 
-    # 1. Code parsen
+    # 1. Parse code
     current_symbols = index_repo_ast(root_dir, changed_files)
     # Helper: Map file path -> set of current symbol_ids
     current_symbols_by_file = {}
@@ -136,7 +136,11 @@ def run_indexing(root_dir: str, embedder, store):
         return current_symbols, changed_symbols, changed_files
 
     # Only embed the changed symbols
-    texts = [f"{s.qualname}: {s.docstring}" for s in to_embed]
+    texts = []
+    for s in to_embed:
+        full_lines = Path(s.file).read_text(encoding="utf-8").splitlines()
+        code_segment = "\n".join(full_lines[s.start - 1:s.end])
+        texts.append(f"{s.qualname}: {s.docstring}\n{code_segment}")
     vectors = embedder.encode(texts)
 
     metadatas = []
@@ -154,16 +158,15 @@ def run_indexing(root_dir: str, embedder, store):
     return current_symbols, changed_symbols, changed_files
 
 
-def get_git_diff_files():
-    """Holt alle geänderten .py Dateien im Vergleich zum vorherigen Stand."""
-    # AKTUELL NOCH TEST MODUS
-    print("TEST-MODUS: Simuliere Änderung in core.py")
-    # Hier gibst du den Pfad an, den du testen möchtest
-    test_file = Path("./sample_project/src/calculator/core.py")
-    return [test_file]
+def get_git_diff_files(test_run):
+    """Gets all changed .py files compared to the previous state."""
+    if test_run:
+        print("TEST-MODUS: Simulate changes in core.py")
+        test_file = Path("./sample_project/src/calculator/core.py")
+        return [test_file]
 
     try:
-        # Vergleicht den aktuellen Stand mit dem vorherigen Commit
+        # Compares the current state with the previous commit
         cmd = ["git", "diff", "--name-only", "HEAD~1", "HEAD"]
         result = subprocess.check_output(cmd, text=True).strip()
         return [Path(f) for f in result.splitlines() if f.endswith(".py") and Path(f).exists()]
@@ -173,33 +176,31 @@ def get_git_diff_files():
 
 
 def get_current_branch():
-    """Ermittelt den Namen des aktuell ausgecheckten Git-Branches."""
+    """Determines the name of the currently checked out git branch."""
     try:
-        # Führt den Befehl aus und gibt den Branch-Namen als String zurück
+        # Executes the command and returns the branch name as a string
         branch = subprocess.check_output(
             ["git", "rev-parse", "--abbrev-ref", "HEAD"],
             text=True
         ).strip()
         return branch
     except subprocess.CalledProcessError:
-        # Fallback auf 'main', falls etwas schiefgeht
-        return "main"
+        raise subprocess.CalledProcessError("Could not determine current branch")
 
 
 def git_commit_and_push_changes():
     """
-    Staged die Doku und die Vektor-DB, committet sie und führt einen Push aus.
+    Stages the docs and the vector DB, commits them and executes a push.
     """
     print("\nStaging changes (Docs & Vector DB)...")
-    # Branch ermitteln
+    # Determine branch
     current_branch = get_current_branch()
     print(f"Detektierter Branch: {current_branch}")
     try:
-        # 1. Dateien hinzufügen (Doku-Ordner und Vektor-Daten)
-        # Wir fügen explizit diese Pfade hinzu
+        # 1. Add files (doc folder and vector data)
         subprocess.run(["git", "add", DOCS_ROOT, QDRANT_DATA_PATH], check=True)
 
-        # 2. Prüfen, ob es überhaupt Änderungen gibt
+        # 2. Check if there are any changes at all int he doc folder and the vector DB
         status = subprocess.check_output(["git", "status", "--porcelain", DOCS_ROOT, QDRANT_DATA_PATH], text=True)
         print(status)
         if not status.strip():
@@ -207,13 +208,13 @@ def git_commit_and_push_changes():
             return
 
         print("Committing automated documentation updates...")
-        # 3. Automatischer Commit
+        # 3. Automatic commit
         subprocess.run(["git", "commit", "-m", "docs: auto-update documentation and vector DB via RAG pipeline"],
                        check=True)
 
         print(f"Pushing updates to origin {current_branch}...")
-        # 4. Push ausführen.
-        # WICHTIG: --no-verify verhindert, dass der Hook sich selbst endlos aufruft!
+        # 4. Execute push.
+        # IMPORTANT: --no-verify prevents the hook from calling itself endlessly!
         subprocess.run(["git", "push", "origin", current_branch, "--no-verify"], check=True)
         print("All changes (Code, Docs, DB) successfully pushed.")
     except subprocess.CalledProcessError as e:

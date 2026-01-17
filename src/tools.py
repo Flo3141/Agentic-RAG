@@ -17,7 +17,7 @@ def search_code(search_string: str) -> str:
     usages = []
     try:
         root = Path(REPO_ROOT)
-        # Rekursiv alle .py Dateien durchsuchen
+        # Recursively search all .py files
         for file_path in root.rglob("*.py"):
             try:
                 content = file_path.read_text(encoding="utf-8")

@@ -1,4 +1,4 @@
 Agentic RAG Pipeline Update
-Calls: 2
-Tokens: 6491
-Time: 63.01 seconds
+Calls: 6
+Tokens: 18349
+Time: 145.95 seconds

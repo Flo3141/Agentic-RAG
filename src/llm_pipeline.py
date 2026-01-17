@@ -8,10 +8,7 @@ from langchain_openai import ChatOpenAI
 from src.symbols_ast import index_repo_ast
 from src.symbols_raw import index_repo_raw
 
-# --- 1. LLM & Prompt Konfiguration ---
-LLM_API_BASE = "http://localhost:11434/v1"
-LLM_MODEL_NAME = "qwen3:4b"
-LLM_API_KEY = "ollama"
+from src.config import LLM_API_BASE, LLM_MODEL_NAME, LLM_API_KEY
 
 
 class APILLM(ChatOpenAI):
@@ -47,8 +44,6 @@ def evaluate_raw(root_dir: str, llm):
         chunks_by_file[chunk.file].append(chunk)
 
     for file_path, file_chunks in chunks_by_file.items():
-        if "core.py" not in str(file_path): continue  # Fokus on core.py for comparison
-
         base_name = Path(file_path).stem
         out_name = f"docs_naive_raw_{base_name}.md"
 

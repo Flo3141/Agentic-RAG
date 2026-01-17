@@ -35,7 +35,7 @@ class CalculationLimitError(CalculatorError):
 MAX_VALUE = 1e12
 MIN_VALUE = -1e12
 DEFAULT_PRECISION = 2
-CURRENT_MODE = "Scientific"
+CURRENT_MODE = "Standard"
 
 class ArithmeticOperations:
     """
@@ -57,7 +57,7 @@ class ArithmeticOperations:
 
     @property
     def mode(self) -> str:
-        """Returns the current operation mode. Changed Default Mode"""
+        """Returns the current operation mode."""
         return CURRENT_MODE
 
     def add(self, a: float, b: float) -> float:

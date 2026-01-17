@@ -11,13 +11,7 @@ from src.markdown_writer import MarkdownWriter
 from src.store_qdrant import QdrantStore
 from src.symbols_ast import index_repo_ast
 
-# --- 1. Konfiguration ---
-LLM_API_BASE = "http://localhost:11434/v1"
-LLM_MODEL_NAME = "qwen3:4b"
-LLM_API_KEY = "ollama"
-DOCS_ROOT = Path("../sample_project/docs")
-
-# --- 2. Prompts ---
+from src.config import LLM_API_BASE, LLM_MODEL_NAME, LLM_API_KEY, DOCS_ROOT
 from src.prompts import CODE_EXPERT_PROMPT, DOCS_EXPERT_PROMPT
 
 class APILLM(ChatOpenAI):
@@ -27,14 +21,14 @@ class APILLM(ChatOpenAI):
 
 def run_indexing(root_dir: str, embedder, store):
     """
-    Liest den Code, erstellt Embeddings und speichert sie in Qdrant.
+    Reads the code, creates embeddings and saves them in Qdrant.
     """
     print("\n--- STEP 1: Indexing Repository (Knowledge Base) ---")
 
-    # 1. Code parsen
+    # 1. Parse code --> Here we index the whole repo, not like when we use the git diff
     current_symbols = index_repo_ast(root_dir)
 
-    # Index only relevant symbols (Klassen, Funktionen)
+    # Index only relevant symbols (classes, functions, methods)
     indexable_symbols = [s for s in current_symbols if s.kind in ("class", "function", "method")]
 
     # Create lookup map of all symbol_ids with corresponding hashes from the Qdrant DB
@@ -76,7 +70,13 @@ def run_indexing(root_dir: str, embedder, store):
         return current_symbols
 
     # Only embedd the changed symbols
-    texts = [f"{s.qualname}: {s.docstring}" for s in to_embed]
+    texts = []
+    for s in to_embed:
+        full_lines = Path(s.file).read_text(encoding="utf-8").splitlines()
+        code_segment = "\n".join(full_lines[s.start - 1:s.end])
+        texts.append(f"{s.qualname}: {s.docstring}\n{code_segment}")
+
+
     vectors = embedder.encode(texts)
 
     metadatas = []
@@ -98,8 +98,8 @@ def run_indexing(root_dir: str, embedder, store):
 
 def generate_with_rag(llm, code_segment, embedder, store, current_symbol_name):
     """
-    Führt den klassischen RAG-Schritt aus:
-    Query -> Vektor-Suche -> Kontext -> LLM Generierung
+    Executes the classic RAG step:
+    Query -> Vector Search -> Context -> LLM Generation
     """
 
     # Retrieve the 5 most similar symbols form the vector db

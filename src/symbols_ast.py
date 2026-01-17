@@ -8,7 +8,7 @@ IGNORE = [".venv", "site-packages", "build", "dist", "__pycache__", ".git", ".id
 
 
 def _sha(s: str) -> str:
-    """Berechnet den Hash des Code-Inhalts."""
+    """Calculates the hash of the code content."""
     return hashlib.sha256(s.encode("utf-8")).hexdigest()
 
 

@@ -11,15 +11,7 @@ from src.markdown_writer import MarkdownWriter
 from src.util import run_indexing, git_commit_and_push_changes
 from src.store_qdrant import QdrantStore
 
-# --- 1. Konfiguration ---
-LLM_API_BASE = "http://localhost:11434/v1"
-LLM_MODEL_NAME = "qwen3:4b"
-LLM_API_KEY = "ollama"
-DOCS_ROOT = Path("./sample_project/docs")
-REPO_ROOT = Path("./sample_project")
-QDRANT_DATA_PATH = Path("./sample_project/qdrant_data")
-
-# --- 2. Prompts ---
+from src.config import LLM_API_BASE, LLM_MODEL_NAME, LLM_API_KEY, DOCS_ROOT, REPO_ROOT, QDRANT_DATA_PATH
 from src.prompts import CODE_EXPERT_PROMPT, DOCS_EXPERT_PROMPT
 
 
@@ -32,8 +24,8 @@ class APILLM(ChatOpenAI):
 
 def generate_with_rag(llm, code_segment, embedder, store, current_symbol_name):
     """
-    Führt den klassischen RAG-Schritt aus:
-    Query -> Vektor-Suche -> Kontext -> LLM Generierung
+    Executes the classic RAG step:
+    Query -> Vector Search -> Context -> LLM Generation
     """
 
     # Retrieve the 5 most similar symbols form the vector db
@@ -65,13 +57,13 @@ def generate_with_rag(llm, code_segment, embedder, store, current_symbol_name):
 
 
 
-def process_pipeline(llm):
+def process_pipeline(llm, test_run=False):
     embedder = Embedder()
     store = QdrantStore(index_path=Path(QDRANT_DATA_PATH), collection_name="eval_repo")
     writer = MarkdownWriter(DOCS_ROOT)
 
     # Index repository
-    all_symbols, changed_symbols, changed_files_list = run_indexing(REPO_ROOT, embedder, store)
+    all_symbols, changed_symbols, changed_files_list = run_indexing(REPO_ROOT, embedder, store, test_run)
 
     changed_symbols_by_file = defaultdict(list)
     all_symbols_by_file = defaultdict(list)
@@ -126,7 +118,8 @@ def process_pipeline(llm):
         writer.reorder_sections(file_path=md_file_path, ordered_symbol_ids=[s.symbol_id for s in all_file_symbols])
 
     store.close()
-    # git_commit_and_push_changes()
+    if not test_run:
+        git_commit_and_push_changes()
 
 
 if __name__ == "__main__":

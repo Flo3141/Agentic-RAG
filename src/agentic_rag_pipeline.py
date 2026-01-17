@@ -7,7 +7,6 @@ from pathlib import Path
 from langchain_core.output_parsers import StrOutputParser, JsonOutputParser
 from langchain_openai import ChatOpenAI
 
-# Import deiner bestehenden Module
 from src.embed import Embedder
 from src.store_qdrant import QdrantStore
 from src.markdown_writer import MarkdownWriter
@@ -15,7 +14,6 @@ from src.markdown_writer import MarkdownWriter
 from src.prompts import RESEARCH_LOOP_PROMPT, DOCS_EXPERT_PROMPT
 from src.tools import search_code
 from src.util import get_doc_for_symbol, run_indexing, git_commit_and_push_changes
-# --- 1. Konfiguration ---
 from src.config import LLM_API_BASE, LLM_MODEL_NAME, LLM_API_KEY, DOCS_ROOT, REPO_ROOT, QDRANT_DATA_PATH
 
 # Tool Mapping
@@ -172,13 +170,13 @@ def run_research_phase(llm, code, context):
     return result.get("analysis", "No analysis produced.")
 
 
-def process_pipeline(llm):
+def process_pipeline(llm, test_run=False):
     embedder = Embedder()
     store = QdrantStore(index_path=Path(QDRANT_DATA_PATH), collection_name="eval_repo")
     writer = MarkdownWriter(DOCS_ROOT)
 
     # Index repository
-    all_symbols, changed_symbols, changed_files_list = run_indexing(REPO_ROOT, embedder, store)
+    all_symbols, changed_symbols, changed_files_list = run_indexing(REPO_ROOT, embedder, store, test_run)
 
     changed_symbols_by_file = defaultdict(list)
     all_symbols_by_file = defaultdict(list)
@@ -195,7 +193,7 @@ def process_pipeline(llm):
         # Generates the MD file name
         # The name will be all directories and the final file joined with "_"
         # So all MD files can be found in the top level of the DOCS_ROOT
-        # ONLY THE FILES WITHIN THE SRC FOLDER WILL BE DOCUMENTED
+        # ONLY THE FILES WITHIN THE SRC FOLDER OF THE REPO_ROOT WILL BE DOCUMENTED
         if "src" not in file_path:
             continue
 
@@ -244,7 +242,8 @@ def process_pipeline(llm):
         writer.reorder_sections(file_path=md_file_path, ordered_symbol_ids=[s.symbol_id for s in all_file_symbols])
 
     store.close()
-    # git_commit_and_push_changes()
+    if not test_run:
+        git_commit_and_push_changes()
 
 
 if __name__ == "__main__":

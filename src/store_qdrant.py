@@ -51,7 +51,7 @@ class QdrantStore:
         for i, (vec, meta) in enumerate(zip(vectors, metadatas)):
             # Qdrant requires unique IDs. --> We use Hashes of the symbol_id, so that we distinguish between
             # code snippets that are already embedded and new ones
-            stable_id_str = meta["symbol_id"]  # z.B. "calculator.core.add"
+            stable_id_str = meta["symbol_id"]  
 
             hash_val = hashlib.md5(stable_id_str.encode("utf-8")).hexdigest()
             point_id = str(uuid.UUID(hex=hash_val))
